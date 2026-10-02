@@ -1,0 +1,1135 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="瑪奇 Mobile 佈告欄任務、以物易物與材料商店追蹤工具：記錄本尊與分身進度，自動匯總所需材料與花費。">
+<meta property="og:title" content="瑪奇M 素材帳本">
+<meta property="og:description" content="瑪奇 Mobile 佈告欄任務、以物易物與材料商店追蹤工具：記錄本尊與分身進度，自動匯總所需材料與花費。">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#1f6b5c">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231f6b5c'/%3E%3Cpath d='M18 33l9 9 19-20' stroke='white' stroke-width='7' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<title>瑪奇M 素材帳本</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<style>
+/* Layout: 帳本式工具（淺色單一主題）— 頂部三個分頁（素材匯總 / 任務兌換紀錄 / 材料商店），內容單欄，寬螢幕置中 960px */
+:root{
+  --bg:#edf1ee; --surface:#fbfcfa; --sunk:#e3e9e5; --ink:#1c2926; --muted:#5a6a64; --line:#d2dbd6;
+  --accent:#1f6b5c; --accent-ink:#ffffff; --accent-soft:#d6e9e3; --brass:#9a6a14; --brass-soft:#f3e6c8;
+  --danger:#b2402f; --ok:#2f7d4a;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-display:var(--f-body); --f-num:var(--f-body);
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;padding-inline:16px;padding-block:0 48px}
+.wrap{max-width:960px;margin:0 auto}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num,td,.stat b,.ctr .val,.cnt,em{font-variant-numeric:tabular-nums}
+
+header.top{padding-block:20px 8px;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 16px}
+h1{font-family:var(--f-display);font-weight:900;font-size:1.9rem;margin:0;letter-spacing:.02em;text-wrap:balance}
+h1 small{font-size:.9rem;font-weight:400;color:var(--muted);margin-left:.4em;font-family:var(--f-body)}
+.resets{display:flex;gap:6px;flex-wrap:wrap;font-size:.8rem;color:var(--muted)}
+.resets span{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+
+.sticky{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:8px;border-bottom:1px solid var(--line)}
+.tabs{display:flex;gap:4px}
+.subtabs{padding-block:12px 0}
+.subtabs .seg{display:flex;width:100%}
+.subtabs .seg button{flex:1;padding:8px 10px;font-size:.92rem}
+.subtabs .cnt{font-size:.78rem;color:var(--brass);margin-left:4px}
+.resets .btn{padding:2px 12px;border-radius:999px;font-size:.8rem;color:var(--ink)}
+.item .price-col{display:grid;gap:2px;min-width:3.4em}
+.item .price-col small{font-size:.72rem;color:var(--muted)}
+.tab{flex:1;border:0;background:transparent;padding:10px 8px;border-radius:8px;font-weight:700;color:var(--muted);font-size:1rem}
+.tab[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 0 var(--line),0 0 0 1px var(--line)}
+.tab .cnt{font-family:var(--f-num);font-size:.8rem;color:var(--brass);margin-left:4px}
+
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.seg{display:inline-flex;background:var(--sunk);border-radius:9px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;padding:6px 12px;border-radius:7px;font-size:.9rem;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:700;box-shadow:0 0 0 1px var(--line)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin}
+.chip{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 14px;font-size:.9rem;white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.chip.ghost{border-style:dashed;color:var(--muted)}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 12px;font-size:.88rem}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+.btn.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
+.btn.danger.armed{background:var(--danger);color:var(--surface)}
+input[type=search],input[type=text],select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px;min-width:0}
+textarea{width:100%;font-family:var(--f-num);font-size:.78rem}
+label.tog{display:inline-flex;gap:6px;align-items:center;font-size:.88rem;color:var(--muted)}
+
+section.panel{padding-block:16px;display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+.controls{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.lbl{font-size:.75rem;letter-spacing:.08em;color:var(--muted);font-weight:700}
+
+/* 匯總 */
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat b{display:block;font-family:var(--f-num);font-size:1.4rem;line-height:1.2}
+.stat span{font-size:.78rem;color:var(--muted)}
+.tablebox{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:.92rem}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:.75rem;color:var(--muted);font-weight:700;background:var(--sunk);position:sticky;top:0}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:inherit}
+tbody tr{background:var(--surface)}
+tbody tr.mat{cursor:pointer}
+tbody tr.mat:hover{background:var(--accent-soft)}
+td.total{font-family:var(--f-num);font-weight:500;color:var(--brass);font-size:1rem}
+td.c{font-family:var(--f-num);color:var(--ink)}
+td.c.z{color:var(--line)}
+.kind.acct{background:var(--accent-soft);color:var(--accent)}
+.kind.cur{background:var(--sunk);color:var(--ink)}
+h4.sub{margin:6px 0 0;font-size:.95rem}
+.sec-title{font-size:1.2rem;font-weight:700;margin:0}
+#progSec{display:grid;gap:8px}
+#quick{display:grid;gap:6px}
+.qgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.qbtn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 8px;display:grid;gap:2px;text-align:center}
+.qbtn b{font-size:.95rem}
+.qbtn span{font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.qbtn:hover:not(:disabled){border-color:var(--accent)}
+.qbtn.done{background:var(--accent-soft);border-color:var(--accent)}
+.qbtn.done b,.qbtn.done span{color:var(--accent)}
+.qbtn.armed{background:var(--danger);border-color:var(--danger)}
+.qbtn.armed b,.qbtn.armed span{color:var(--surface)}
+.qbtn:disabled{opacity:.45;cursor:default}
+@media (max-width:520px){.qgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+td.shop{color:var(--muted);font-size:.85rem}
+td.shop b{color:var(--accent);font-weight:700}
+.price{font-variant-numeric:tabular-nums;color:var(--accent);font-weight:700}
+.kind{display:inline-block;font-size:.68rem;padding:0 6px;border-radius:4px;margin-left:6px;vertical-align:1px;background:var(--sunk);color:var(--muted)}
+.kind.board{background:var(--brass-soft);color:var(--brass)}
+tr.src td{white-space:normal;text-align:left;background:var(--sunk);font-size:.84rem;color:var(--muted)}
+tr.src ul{margin:0;padding-left:1.1em}
+tr.src li b{color:var(--ink);font-weight:500}
+
+/* 紀錄 */
+.region{display:grid;gap:8px}
+.region h3{font-family:var(--f-display);font-weight:700;font-size:1.2rem;margin:10px 0 0;display:flex;align-items:baseline;gap:8px}
+.region h3 small{font-family:var(--f-body);font-size:.78rem;color:var(--muted);font-weight:400}
+.npc{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.npc .who{padding:6px 12px;font-weight:700;font-size:.85rem;color:var(--muted);background:var(--sunk);display:flex;justify-content:space-between}
+.item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:9px 12px;border-top:1px solid var(--line)}
+.item.nochk{grid-template-columns:minmax(0,1fr) auto}
+.item:first-of-type{border-top:0}
+input[type=checkbox]{appearance:none;-webkit-appearance:none;width:20px;height:20px;margin:0;flex:none;border:1.5px solid var(--line);border-radius:5px;background:var(--surface);cursor:pointer;display:inline-grid;place-content:center}
+input[type=checkbox]:hover{border-color:var(--accent)}
+input[type=checkbox]:checked{background:var(--accent-soft);border-color:var(--accent)}
+input[type=checkbox]:checked::after{content:"";width:10px;height:5px;border-left:2px solid var(--accent);border-bottom:2px solid var(--accent);transform:translateY(-1px) rotate(-45deg)}
+.trade{min-width:0}
+.trade .give{font-weight:500}
+.trade .give em{font-style:normal;font-family:var(--f-num);color:var(--brass);font-size:.88rem}
+.trade .get{font-size:.85rem;color:var(--muted)}
+.lim{font-size:.72rem;border:1px solid var(--line);border-radius:999px;padding:0 7px;color:var(--muted);white-space:nowrap;margin-left:4px}
+.lim.w{color:var(--accent);border-color:var(--accent)}
+.lim.once{color:var(--brass);border-color:var(--brass)}
+.ctr{display:flex;align-items:center;gap:4px}
+.ctr button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-size:1.1rem;line-height:1}
+.ctr button.txt{width:auto;padding:0 8px;font-size:.8rem}
+.ctr{flex-wrap:wrap}
+.ctr .val{font-family:var(--f-num);min-width:4.2em;text-align:center;font-size:.9rem}
+.ctr .val input{width:2.6em;text-align:center;font-family:var(--f-num);border:1px solid var(--line);border-radius:6px;background:var(--bg);padding:2px}
+.item.done .trade{opacity:.5}
+.item.done .val{color:var(--ok)}
+.item.off .ctr{display:none}
+.empty{padding:28px 16px;text-align:center;color:var(--muted);background:var(--surface);border:1px dashed var(--line);border-radius:10px}
+.empty b{display:block;color:var(--ink);font-family:var(--f-display);font-size:1.15rem;margin-bottom:4px}
+.note{font-size:.8rem;color:var(--muted)}
+.bar{height:6px;background:var(--sunk);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+
+/* 管理面板 */
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);padding:0;width:min(560px,calc(100vw - 32px));max-height:85vh}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+dialog .hd{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}
+dialog .hd h2{font-family:var(--f-display);margin:0;font-size:1.3rem}
+dialog .bd{padding:14px 16px;display:grid;gap:14px;overflow:auto}
+.charrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:.88rem;z-index:20}
+footer{margin-top:28px;font-size:.78rem;color:var(--muted);display:grid;gap:4px}
+footer a{color:var(--accent)}
+@media (max-width:520px){
+  h1{font-size:1.55rem}
+  .tab{font-size:.88rem;padding:10px 2px;white-space:nowrap}
+  .item{grid-template-columns:auto minmax(0,1fr)}
+  .item .ctr{grid-column:2;justify-content:flex-start}
+  .item.nochk{grid-template-columns:minmax(0,1fr)}
+  .item.nochk .ctr{grid-column:1}
+  .stat b{font-size:1.15rem}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<style>html{-webkit-text-size-adjust:100%}body{margin:0}</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header class="top">
+    <h1>瑪奇M 素材帳本<small>佈告欄 × 以物易物 × 商店</small></h1>
+    <div class="resets"><span id="rDay">每日 06:00 重置</span><span id="rWeek">每週一 06:00 重置</span><button class="btn" id="openManage">角色管理</button></div>
+  </header>
+
+  <div class="sticky">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tabBB" aria-selected="true">佈告欄/以物易物<span class="cnt" id="cntBB"></span></button>
+      <button class="tab" role="tab" id="tabShop" aria-selected="false">材料商店<span class="cnt" id="cntShop"></span></button>
+    </div>
+  </div>
+
+  <div class="subtabs"><div class="seg" id="subTabs"></div></div>
+
+  <!-- 匯總 -->
+  <section class="panel" id="pSum">
+    <div class="controls">
+      <div><div class="lbl">角色範圍</div><div class="chips" id="sumScope"></div></div>
+      <div class="row">
+        <div class="seg" id="sumType"></div>
+        <select id="sumSort" aria-label="排序"><option value="qty">依需求量</option><option value="name">依名稱</option></select>
+        <label class="tog"><input type="checkbox" id="expand"> 料理與兌換品換算成原料</label>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div id="quick" hidden><div class="lbl">佈告欄快速完成</div><div class="qgrid" id="quickBtns"></div></div>
+    <div id="sumBody"></div>
+    <div id="progSec" hidden>
+      <div class="row" style="justify-content:space-between;margin-top:6px"><h3 class="sec-title">任務進度</h3><button class="btn" id="resetChar">清空本角色進度</button></div>
+      <div id="progBody"></div>
+    </div>
+    <p class="note">選單一角色時，下方會出現該角色的任務進度，按＋記錄完成次數，上方素材量會跟著更新。需求量＝（目標次數 − 已完成次數）× 每次所需數量。點材料列可看是哪些任務或兌換要用、哪裡買得到。「本週可買」是範圍內角色在「材料商店」分頁扣掉已購買後的剩餘數量；帳號共用的項目只算一次。</p>
+  </section>
+
+  <!-- 紀錄 -->
+  <section class="panel" id="pRec" hidden>
+    <div class="controls">
+      <div><div class="lbl">角色</div>
+        <div class="chips" id="recChars"></div>
+      </div>
+      <div class="row">
+        <div class="seg" id="recType"></div>
+        <select id="recRegion" aria-label="地區"></select>
+        <input type="search" id="recSearch" placeholder="搜尋 NPC 或材料" style="flex:1 1 140px">
+      </div>
+      <div class="row" style="justify-content:space-between">
+        <label class="tog"><input type="checkbox" id="onlyTracked"> 只看已追蹤</label>
+        <div class="row">
+          <button class="btn" id="copyToAll">追蹤設定套用到所有角色</button>
+        </div>
+      </div>
+      <p class="note" style="margin:0">這裡只設定每個項目的目標次數，完成進度請到「進度與素材」記錄。</p>
+    </div>
+    <div id="recBody"></div>
+  </section>
+
+  <!-- 商店 -->
+  <!-- 必買清單 -->
+  <section class="panel" id="pBuy" hidden>
+    <div class="controls">
+      <div><div class="lbl">角色範圍</div><div class="chips" id="buyScope"></div></div>
+    </div>
+    <div class="stats" id="buyStats"></div>
+    <div id="buyBody"></div>
+    <p class="note">必買清單只列出你在「勾選追蹤項目」勾選的商品。還要買＝目標數量 − 本週已買。已買數量每週一 06:00 歸零，勾選和目標數量會保留。</p>
+  </section>
+
+  <!-- 商店追蹤設定 -->
+  <section class="panel" id="pShop" hidden>
+    <div class="controls">
+      <div><div class="lbl">角色</div><div class="chips" id="shopChars"></div></div>
+      <div class="chips" id="shopCur"></div>
+      <div class="row">
+        <select id="shopRegion" aria-label="地區"></select>
+        <input type="search" id="shopSearch" placeholder="搜尋材料或 NPC" style="flex:1 1 140px">
+      </div>
+      <div class="row" style="justify-content:space-between">
+        <div class="row"><label class="tog"><input type="checkbox" id="shopOnly"> 只看已追蹤</label><label class="tog"><input type="checkbox" id="hideUnl"> 隱藏不限購商品</label></div>
+        <button class="btn" id="shopCopyAll">追蹤設定套用到所有角色</button>
+      </div>
+    </div>
+    <div id="shopBody"></div>
+    <p class="note">價格未特別標示的單位是金幣。限購數量除了標「帳號共用」的項目，都是每個角色分開計算，每週一 06:00 重置。「各地不限購」把所有不限購的商品集中在一頁方便查價，要追蹤請在各地區清單裡勾選。這裡只設定每個商品的目標數量，購買進度請到「必買清單」記錄。</p>
+  </section>
+
+  <footer>
+    <div>紀錄只存在你這台裝置的瀏覽器中。換手機或清除瀏覽資料前，請到「角色管理 → 備份」複製備份碼。</div>
+    <div>素材資料版本 <span id="dataVer"></span>・以遊戲內為準。兌換與商店資料參考 <a href="https://mabi.yenyen.dev/" target="_blank" rel="noopener">瑪奇 Mobile 繁中資料庫</a>、<a href="https://mabinogimobile.nipponhashi.com/barter/" target="_blank" rel="noopener">Wiki DB</a>。</div>
+  </footer>
+</div>
+
+<dialog id="dlg">
+  <div class="hd"><h2>管理</h2><button class="btn" id="dlgClose">完成</button></div>
+  <div class="bd">
+    <div>
+      <div class="lbl">角色（本尊＋分身）</div>
+      <div id="charList" style="display:grid;gap:8px;margin-top:6px"></div>
+      <button class="btn" id="addChar" style="margin-top:8px">＋ 新增分身</button>
+    </div>
+    <div>
+      <div class="lbl">備份</div>
+      <p class="note" style="margin:4px 0 6px">複製備份碼存到記事本；換裝置時貼回下方再按「還原」。</p>
+      <textarea id="bkOut" rows="3" readonly></textarea>
+      <div class="row" style="margin-top:6px"><button class="btn" id="bkCopy">複製備份碼</button></div>
+      <textarea id="bkIn" rows="3" placeholder="在這裡貼上備份碼" style="margin-top:10px"></textarea>
+      <div class="row" style="margin-top:6px"><button class="btn primary" id="bkApply">還原</button></div>
+    </div>
+    <div>
+      <div class="lbl">全部清除</div>
+      <div class="row" style="margin-top:6px"><button class="btn danger" id="wipe">清除所有角色與紀錄</button></div>
+    </div>
+  </div>
+</dialog>
+
+<script>
+/* ===== 素材資料（作者維護）=====
+   以物易物／佈告欄格式：地區|NPC|交出材料*數量(多種用 + 分隔)|獲得|上限次數|週期 d=每日 w=每週 o=一次性 i=不限|a=帳號共用(可省略)
+*/
+const DATA_VERSION = '2026-10-02（已實地核對）';
+const BARTER_RAW = `
+提爾克那|佛格斯|鋼錠*2|合金鋼錠|4|d
+提爾克那|佛格斯|分解的裝備零件*1|煤炭×3|10|d
+提爾克那|佛格斯|分解的裝備零件*1|鐵礦石|10|d
+提爾克那|佛格斯|礦石*100|分解的裝備零件×10|1|d
+提爾克那|麗莎|蘋果汁*1|高級鍊金術再燃燒催化劑|1|d|a
+提爾克那|麗莎|鍊金術碎屑*3|高級鍊金術再燃燒催化劑|1|d|a
+提爾克那|麗莎|高級鍊金術再燃燒催化劑*15|稀有鍊金術再燃燒催化劑|1|d|a
+提爾克那|凱琳|牛奶*10|凱琳特製全麥麵包×3|1|d
+提爾克那|凱琳|麵粉*10|食材加工設備設計圖(3級)|1|o
+提爾克那|安黛莉|凱琳特製全麥麵包*10|聖水×10|1|d|a
+提爾克那|梅文|凱琳特製全麥麵包*1|聖水|1|d|a
+提爾克那|麥爾坎|專業營火套組*1|多用途製作台設計圖(3級)|1|d
+提爾克那|麥爾坎|蜘蛛網*5|麥爾坎的鬆軟羊毛枕頭|1|d
+提爾克那|麥爾坎|羊毛*50|空白樂譜|1|d
+提爾克那|雷納德|美乃滋炒肉*2|暴擊秘藥|1|d
+提爾克那|愛麗沙|薰衣草花*1|鍊金術碎屑|1|d
+提爾克那|愛麗沙|雞蛋*10|鍊金術碎屑|1|d
+提爾克那|愛麗沙|薰衣草花*1|麵粉|1|d
+提爾克那|愛麗沙|雞蛋*3|麵粉|1|d
+提爾克那|迪莉絲|咻咻蘑菇*3|四葉草|1|d
+提爾克那|迪恩|寵物飼料*1|高級羊毛×4|10|d
+提爾克那|蘿拉|麥爾坎的鬆軟羊毛枕頭*1|旅行者點心|3|d
+杜加德走廊|特蕾西|原木*1|生皮|10|d
+杜加德走廊|特蕾西|原木*10|高級生皮|10|d
+杜加德走廊|特蕾西|高級原木*1|樹液×4|5|d
+杜加德走廊|特蕾西|蒸蛤蜊*2|特蕾西的原木音樂盒|1|d
+杜加德走廊|特蕾西|幼蟲*5|木材加工設備設計圖(3級)|1|o
+杜加德走廊|艾爾文|炒蔬菜*1|高級木材×4|2|d
+杜加德走廊|艾爾文|高級皮革*1|高級原木|10|d
+杜加德走廊|艾爾文|生皮*5|單寧粉末×5|10|d
+杜加德走廊|艾爾文|布料+*5|皮革加工設備設計圖(3級)|1|o
+杜巴頓|奈麗絲|合金鋼錠*2|特殊鋼錠|4|d
+杜巴頓|奈麗絲|銅礦石*1|高級生皮|10|d
+杜巴頓|史帝華|鍊金術碎屑*1|火苗的結晶|5|d
+杜巴頓|史帝華|鍊金術碎屑*1|冰霜的結晶|5|d
+杜巴頓|史帝華|鍊金術碎屑*1|電氣的結晶|5|d
+杜巴頓|史帝華|鍊金術碎屑*1|光輝的結晶|5|d
+杜巴頓|史帝華|鍊金術碎屑*1|封印的結晶|5|d
+杜巴頓|史帝華|強化再燃燒催化劑*5|未加工黃金原石×7|1|d
+杜巴頓|史帝華|稀有鍊金術再燃燒催化劑*50|未加工黃金原石×7|1|d
+杜巴頓|馬努斯|寵物飼料*10|生命的魔力石|2|d
+杜巴頓|瓦爾特|特蕾西的原木音樂盒*1|皮革×6|2|d
+杜巴頓|瓦爾特|真愛魚*5|愛心幣|2|d
+杜巴頓|瓦爾特|暗影幽靈魚*5|火焰魔法榴彈|3|d
+杜巴頓|瓦爾特|暗影幽靈魚*5|閃電魔法榴彈|3|d
+杜巴頓|瓦爾特|暗影幽靈魚*5|風魔法榴彈|3|d
+杜巴頓|瓦爾特|暗影幽靈魚*5|酸蝕魔法榴彈|3|d
+杜巴頓|潔米|蘋果舒芙蕾*1|高級布料×4|2|d
+杜巴頓|潔米|蘋果鮮奶油蛋糕*1|高級布料+×4|1|d
+杜巴頓|傑羅姆|瑞可塔起司沙拉*1|絲綢×4|2|d
+杜巴頓|傑羅姆|奶油醬牛排*1|高級絲綢×4|1|d
+杜巴頓|卡利克斯|格莉娜的蘋果奶茶*2|皮革+×10|1|d
+杜巴頓|卡利克斯|不死粉末*5|檸檬×3|1|d
+杜巴頓|卡利克斯|不死粉末*5|胡椒×2|1|d
+杜巴頓|西蒙|高級絲綢*10|染色劑基底|1|d
+杜巴頓|西蒙|完美繃帶*100|布料+×10|1|d
+杜巴頓|西蒙|幽靈螢火蟲*2|布料加工設備設計圖(3級)|1|o
+杜巴頓|西蒙|雕琢橄欖石S*1|防具製作台設計圖(3級)|1|o
+杜巴頓|西蒙|映夢的鏡子碎片*1|黃金錠堆×2|1|d
+杜巴頓|格莉娜|牛奶燉豬肉*1|格莉娜手工蛋糕|1|d
+杜巴頓|格莉娜|鮮奶油*4|格莉娜的蘋果奶茶|1|d
+杜巴頓|格莉娜|蘋果舒芙蕾*1|食物製作台設計圖(3級)|1|o
+杜巴頓|阿蘭雯|職業大師勳章*1|精靈的痕跡×20|0|i
+杜巴頓|阿蘭雯|馬鈴薯沙拉*2|絕招秘藥|1|d
+杜巴頓|蕾拉|無主的小說書*1|紙×10|1|d
+杜巴頓|芙蘿拉|格莉娜手工蛋糕*2|無主的小說書|1|d
+庫漢|阿爾米斯|煤炭*20|金屬加工設備設計圖(3級)|1|o
+庫漢|阿爾米斯|耐熱繃帶*5|武器製作台設計圖(3級)|1|o
+庫漢|阿爾米斯|白銅礦石*1|銅礦石×10|1|d
+庫漢|阿爾米斯|特殊鋼錠*2|銀合金錠|1|d|a
+庫漢|阿爾米斯|解除詛咒藥水*100|聖水×10|1|d
+庫漢|基利安|毒囊*3|藥品加工設備設計圖(3級)|1|d
+庫漢|基利安|夕陽蝴蝶*2|藥品製作台設計圖(3級)|1|d
+庫漢|基利安|淨淨蘑菇孢子*5|健康飲料|5|d
+庫漢|基利安|蒜香橄欖油義大利麵*1|四葉草×8|1|d
+庫漢|凱雅拉|冰草莓飲*2|高級暴擊秘藥|1|d
+庫漢|凱雅拉|聖水*10|裝水的瓶子|1|d
+庫漢|凱雅拉|高級木材+*10|毒囊×3|3|d
+庫漢|凱雅拉|高級木材+*10|凝聚的風×3|3|d
+庫漢|康納|燈籠鮟鱇*5|愛心幣|3|d
+庫漢|康納|健康飲料*1|四葉草×3|3|d
+庫漢|康納|生命的魔力石*1|峽谷的魔力石|10|d|a
+庫漢|康納|生命的魔力石*1|廢墟的魔力石|5|d|a
+萊爾特丘陵|休馬斯|沙威瑪*1|卓越繃帶×5|3|d
+萊爾特丘陵|休馬斯|裝水的瓶子*10|古樸的包裝紙|3|d
+班克爾|艾頓|鱸魚辣魚湯*1|銀合金錠×10|1|w
+班克爾|艾琳|特殊鋼錠*3|銀合金錠|1|d
+班克爾|艾琳|合金鋼錠*30|銀合金錠|1|d
+班克爾|吉爾摩|最高級木材*10|最高級絲綢×5|1|d
+班克爾|吉爾摩|生命的魔力石*1|曠野的魔力石|10|d|a
+班克爾|吉爾摩|生命的魔力石*1|礦山的魔力石|5|d|a
+班克爾|康格|豆乳防風草蛋糕*1|卓越恢復藥水×6|1|d
+班克爾|珍妮佛|黃豆*10|清淡的肉×15|1|d
+班克爾|尚|傷痕花*10|裝水的瓶子×10|1|d
+班克爾|尚|古樸的包裝紙*1|用心準備的花束|1|d
+班克爾|伊比|用心準備的花束*1|落葉蛾×10|1|d
+冰霜峽谷臨時哨所|卡琳|馬鈴薯湯*3|寵物飼料×10|1|d
+地下城|貓商人|繃帶*100|糖×2|1|d
+地下城|貓商人|恢復藥水*100|高麗菜×2|1|d
+地下城|貓商人|擠著吃的點心*1|愛心幣|3|d
+地下城|貓商人|血紅藥草*1|新芽蘑菇|3|d
+地下城|貓商人|旅行者點心*100|鹽×2|1|d
+`;
+
+/* 佈告欄任務：每個角色獨立，每張卷軸每週 3 次 */
+const BOARD_RAW = `
+杜巴頓|佈告欄|蘋果汁*5|料理卷軸|3|w
+杜巴頓|佈告欄|咻咻蘑菇*20|採集卷軸|3|w
+杜巴頓|佈告欄|牛奶*10|採集卷軸|3|w
+杜巴頓|佈告欄|鐵礦石*20|採集卷軸|3|w
+杜巴頓|佈告欄|玉米*10|採集卷軸|3|w
+杜巴頓|佈告欄|洋蔥*10|採集卷軸|3|w
+班克爾|佈告欄|烤整顆馬鈴薯*5|料理卷軸|3|w
+班克爾|佈告欄|黃豆*10|採集卷軸|3|w
+班克爾|佈告欄|防風草*10|採集卷軸|3|w
+提爾克那|佈告欄|煎蛋*5|料理卷軸|3|w
+提爾克那|佈告欄|蜘蛛絲*10|採集卷軸|3|w
+提爾克那|佈告欄|羊毛*20|採集卷軸|3|w
+提爾克那|佈告欄|血紅藥草*20|採集卷軸|3|w
+提爾克那|佈告欄|小麥*10|採集卷軸|3|w
+提爾克那|佈告欄|馬鈴薯*10|採集卷軸|3|w
+庫漢|佈告欄|蒸蛤蜊*5|料理卷軸|3|w
+庫漢|佈告欄|箭花*20|採集卷軸|3|w
+庫漢|佈告欄|雞蛋*10|採集卷軸|3|w
+庫漢|佈告欄|高級原木+*20|採集卷軸|3|w
+庫漢|佈告欄|貝類*10|採集卷軸|3|w
+`;
+
+/* 料理配方（做 1 份所需原料） */
+const RECIPES = {
+  '蘋果汁':[['蘋果',4],['藥草',2],['裝水的瓶子',1],['糖',2]],
+  '烤整顆馬鈴薯':[['馬鈴薯',3],['藥草',2],['糖',2]],
+  '煎蛋':[['雞蛋',1],['鹽',1]],
+  '蒸蛤蜊':[['貝類',10],['裝水的瓶子',5],['檸檬',4],['藥草',3]],
+  '美乃滋炒肉':[['肉',4],['高麗菜',1],['美乃滋',1]],
+  '炒蔬菜':[['馬鈴薯',8],['洋蔥',3],['高麗菜',6],['藥草',2]],
+  '蘋果舒芙蕾':[['蘋果',8],['麵粉',2],['雞蛋',4],['糖',4]],
+  '瑞可塔起司沙拉':[['高麗菜',2],['起司',2],['美乃滋',1]],
+  '奶油醬牛排':[['肉',10],['鮮奶油',2],['大蒜',2],['胡椒',3]],
+  '牛奶燉豬肉':[['肉',8],['牛奶',4],['大蒜',2],['藥草',2]],
+  '馬鈴薯沙拉':[['馬鈴薯',4],['高麗菜',2],['美乃滋',1]],
+  '蒜香橄欖油義大利麵':[['大蒜',7],['麵',2],['洋蔥',2],['胡椒',2]],
+  '冰草莓飲':[['冰',10],['草莓',6],['藥草',2],['糖',4]],
+  '沙威瑪':[['清淡的肉',10],['黃豆',12],['麵粉',3],['高麗菜',5],['檸檬',2]],
+  '鱸魚辣魚湯':[['鱸魚',1],['白蘿蔔',4],['洋蔥',6],['裝水的瓶子',5],['辣椒粉',1],['胡椒',2]],
+  '豆乳防風草蛋糕':[['豆乳',4],['防風草',6],['鮮奶油',2],['麵粉',4],['糖',9]],
+  '馬鈴薯湯':[['馬鈴薯',12],['牛奶',5],['藥草',2],['胡椒',6]],
+  '旅行者點心':[['雞蛋',1],['肉',1]],
+  '蘋果鮮奶油蛋糕':[['蘋果',12],['鮮奶油',2],['麵粉',4],['糖',9]],
+};
+
+/* 商店：商品[*每次數量]|NPC|地區|價格|貨幣|限購(0=不限購, ?=數量待確認)|週期 w=每週 d=每日 n=無|a=帳號共用(可省略) */
+const SHOP_RAW = `
+紙|麥爾坎|提爾克那|100|金幣|0|n
+紙|瓦爾特|杜巴頓|100|金幣|0|n
+紙|康納|庫漢|100|金幣|0|n
+紙|布萊斯、吉爾摩|班克爾|100|金幣|0|n
+空瓶|安黛莉、麥爾坎|提爾克那|50|金幣|0|n
+空瓶|瓦爾特、克莉絲|杜巴頓|50|金幣|0|n
+空瓶|康納|庫漢|50|金幣|0|n
+空瓶|康格、吉爾摩、布萊斯|班克爾|50|金幣|0|n
+布料|麥爾坎|提爾克那|500|金幣|30|w
+生皮|麥爾坎|提爾克那|250|金幣|30|w
+食用油|凱琳|提爾克那|1200|金幣|30|w
+糖|凱琳|提爾克那|1200|金幣|30|w
+鹽|凱琳|提爾克那|1000|金幣|30|w
+高麗菜|凱琳|提爾克那|800|金幣|30|w
+蘋果|凱琳|提爾克那|800|金幣|30|w
+布料|瓦爾特|杜巴頓|500|金幣|30|w
+生皮|瓦爾特|杜巴頓|250|金幣|30|w
+食用油|格莉娜|杜巴頓|1200|金幣|30|w
+大蒜|格莉娜|杜巴頓|1200|金幣|30|w
+糖|格莉娜|杜巴頓|1200|金幣|30|w
+鹽|格莉娜|杜巴頓|1000|金幣|30|w
+高麗菜|格莉娜|杜巴頓|800|金幣|30|w
+蘋果|格莉娜|杜巴頓|800|金幣|30|w
+檸檬|格莉娜|杜巴頓|3000|金幣|30|w
+胡椒|格莉娜|杜巴頓|2000|金幣|30|w
+番茄|格莉娜|杜巴頓|6800|金幣|30|w
+豌豆|格莉娜|杜巴頓|10000|金幣|30|w
+蘆筍|格莉娜|杜巴頓|10000|金幣|30|w
+胡椒|康納|庫漢|2000|金幣|30|w
+番茄|康納|庫漢|6800|金幣|30|w
+豌豆|康納|庫漢|10000|金幣|30|w
+蘆筍|康納|庫漢|10000|金幣|30|w
+貝類|康納|庫漢|600|金幣|30|w
+冰|康納|庫漢|600|金幣|30|w
+鐵礦石|艾頓|班克爾|250|金幣|30|w
+銅礦石|艾頓|班克爾|600|金幣|30|w
+煤炭|艾頓|班克爾|300|金幣|30|w
+單寧粉末|吉爾摩|班克爾|500|金幣|30|w
+樹液|吉爾摩|班克爾|500|金幣|30|w
+大蒜|珍妮佛|班克爾|1200|金幣|30|w
+鹽|珍妮佛|班克爾|1000|金幣|30|w
+檸檬|珍妮佛|班克爾|3000|金幣|30|w
+白蘿蔔|珍妮佛|班克爾|10000|金幣|30|w
+清淡的肉|珍妮佛|班克爾|400|金幣|30|w
+貝類|珍妮佛|班克爾|600|金幣|30|w
+聖水|安黛莉(提爾克那)、克莉絲(杜巴頓)|多個村莊|1500|金幣|5|w|a
+解除詛咒藥水|鄧肯(提爾克那)、伊文(杜巴頓)、凱雅拉(庫漢)|多個村莊|100|魔物討伐證明|10|w
+不死粉末|鄧肯(提爾克那)、伊文(杜巴頓)、凱雅拉(庫漢)|多個村莊|100|魔物討伐證明|5|w
+符文碎片*10|鄧肯(提爾克那)、伊文(杜巴頓)、凱雅拉(庫漢)|多個村莊|20|魔物討伐證明|20|w
+強化再燃燒催化劑|鄧肯(提爾克那)、伊文(杜巴頓)、凱雅拉(庫漢)|多個村莊|300|魔物討伐證明|1|w
+大塊肉|鄧肯(提爾克那)、伊文(杜巴頓)、凱雅拉(庫漢)|多個村莊|100|魔物討伐證明|1|w|a
+無主的召喚結界戰利品|鄧肯(提爾克那)、伊文(杜巴頓)、凱雅拉(庫漢)|多個村莊|150|魔物討伐證明|5|w
+無主的黑色坑洞戰利品|鄧肯(提爾克那)、伊文(杜巴頓)、凱雅拉(庫漢)|多個村莊|50|魔物討伐證明|10|w
+遙遠的星辰印章|鄧肯(提爾克那)、伊文(杜巴頓)、凱雅拉(庫漢)|多個村莊|200|魔物討伐證明|1|w
+菁英煉金術再燃燒催化劑|鄧肯(提爾克那)、伊文(杜巴頓)、凱雅拉(庫漢)|多個村莊|400|魔物討伐證明|1|w
+曠野的魔力石*10|貓商人|地下城|50000|喵幣|3|w
+礦山的魔力石*10|貓商人|地下城|50000|喵幣|3|w
+染色劑基底|貓商人|地下城|80000|喵幣|3|w
+鱸魚|貓商人|地下城|20000|喵幣|10|w
+毒囊*2|貓商人|地下城|20000|喵幣|0|n
+錢幣瓢蟲|吉爾摩|班克爾|1000|金幣|30|w
+最高級蜘蛛網|吉爾摩|班克爾|900|金幣|30|w
+高級生皮+|吉爾摩|班克爾|600|金幣|30|w
+最高級生皮|吉爾摩|班克爾|900|金幣|30|w
+血紅藥草|康格|班克爾|250|金幣|30|w
+箭花|康格|班克爾|400|金幣|30|w
+四葉草|康格|班克爾|750|金幣|5|w
+傷痕花|康格|班克爾|900|金幣|30|w
+傷痕花粉末|康格|班克爾|1200|金幣|30|w
+增幅蘑菇|康格|班克爾|900|金幣|30|w
+增幅蘑菇汁液|康格|班克爾|900|金幣|30|w
+肉|珍妮佛|班克爾|250|金幣|30|w
+辣椒粉|珍妮佛|班克爾|3000|金幣|30|w
+血紅藥草|迪莉絲|提爾克那|250|金幣|30|w
+新芽蘑菇|迪莉絲|提爾克那|250|金幣|30|w
+獨角仙|麥爾坎|提爾克那|500|金幣|30|w
+雞蛋三明治|凱琳|提爾克那|900|金幣|3|w
+起司麵包|凱琳|提爾克那|900|金幣|3|w
+水煮蛋|凱琳|提爾克那|900|金幣|3|w
+肉|凱琳|提爾克那|250|金幣|30|w
+四葉草|基利安|庫漢|750|金幣|5|w
+躲躲花|基利安|庫漢|150|金幣|30|w
+躲躲花粉末|基利安|庫漢|900|金幣|30|w
+壯壯蘑菇粉末|基利安|庫漢|600|金幣|30|w
+淨淨蘑菇|基利安|庫漢|600|金幣|30|w
+淨淨蘑菇汁液|基利安|庫漢|750|金幣|30|w
+肉|康納|庫漢|250|金幣|30|w
+草莓|康納|庫漢|1200|金幣|30|w
+高級生皮|康納|庫漢|600|金幣|30|w
+高級生皮+|康納|庫漢|600|金幣|30|w
+獨角仙|康納|庫漢|500|金幣|30|w
+滴答螢火蟲|康納|庫漢|400|金幣|30|w
+高級生皮|瓦爾特|杜巴頓|600|金幣|30|w
+滴答螢火蟲|瓦爾特|杜巴頓|400|金幣|30|w
+白花蝶|瓦爾特|杜巴頓|400|金幣|30|w
+烤肉|格莉娜|杜巴頓|3000|金幣|3|w
+烤整顆馬鈴薯|格莉娜|杜巴頓|3000|金幣|3|w
+蘋果汁|格莉娜|杜巴頓|3000|金幣|3|w
+肉|格莉娜|杜巴頓|250|金幣|30|w
+血紅藥草|馬努斯|杜巴頓|250|金幣|30|w
+箭花|馬努斯|杜巴頓|400|金幣|30|w
+魔力藥草|馬努斯|杜巴頓|600|金幣|30|w
+毅力草|馬努斯|杜巴頓|400|金幣|30|w
+壯壯蘑菇粉末|馬努斯|杜巴頓|600|金幣|30|w
+壯壯蘑菇汁液|馬努斯|杜巴頓|600|金幣|30|w
+咻咻蘑菇|馬努斯|杜巴頓|600|金幣|30|w
+咻咻蘑菇汁液|馬努斯|杜巴頓|600|金幣|30|w
+新芽蘑菇汁液|馬努斯|杜巴頓|400|金幣|30|w
+喵喵魔法榴彈|貓商人|地下城|80000|喵幣|0|n
+聖水|皮爾斯(提爾克那)、芙蘿拉(杜巴頓)、提爾(庫漢)、珍妮佛(班克爾)|多個村莊|10|愛心幣|20|w|a
+寵物飼料|皮爾斯(提爾克那)、芙蘿拉(杜巴頓)、提爾(庫漢)、珍妮佛(班克爾)|多個村莊|10|愛心幣|20|w|a
+強化秘藥乳化劑|麗莎(提爾克那)、史帝華(杜巴頓)|多個村莊|5|愛心幣|10|w|a
+強化秘藥乳化劑|麗莎(提爾克那)、史帝華(杜巴頓)|多個村莊|7500|金幣|20|w|a
+料理材料選擇箱|皮爾斯(提爾克那)、芙蘿拉(杜巴頓)、提爾(庫漢)、珍妮佛(班克爾)|多個村莊|40|愛心幣|1|w|a
+支配的圖樣選擇箱|皮爾斯(提爾克那)、芙蘿拉(杜巴頓)、提爾(庫漢)、珍妮佛(班克爾)|多個村莊|40|愛心幣|1|w|a
+染色劑選擇箱|皮爾斯(提爾克那)、芙蘿拉(杜巴頓)、提爾(庫漢)、珍妮佛(班克爾)|多個村莊|40|愛心幣|1|w|a
+烤整顆馬鈴薯*2|皮爾斯(提爾克那)、芙蘿拉(杜巴頓)、提爾(庫漢)、珍妮佛(班克爾)|多個村莊|5|愛心幣|2|w|a
+馬鈴薯沙拉*2|皮爾斯(提爾克那)、芙蘿拉(杜巴頓)、提爾(庫漢)、珍妮佛(班克爾)|多個村莊|5|愛心幣|2|w|a
+蘋果汁*2|皮爾斯(提爾克那)、芙蘿拉(杜巴頓)、提爾(庫漢)、珍妮佛(班克爾)|多個村莊|5|愛心幣|2|w|a
+蘋果沙拉*2|皮爾斯(提爾克那)、芙蘿拉(杜巴頓)、提爾(庫漢)、珍妮佛(班克爾)|多個村莊|5|愛心幣|2|w|a
+烤肉*2|皮爾斯(提爾克那)、芙蘿拉(杜巴頓)、提爾(庫漢)、珍妮佛(班克爾)|多個村莊|5|愛心幣|2|w|a
+美乃滋炒肉*2|皮爾斯(提爾克那)、芙蘿拉(杜巴頓)、提爾(庫漢)、珍妮佛(班克爾)|多個村莊|5|愛心幣|2|w|a
+`;
+/* 歸類為貨幣的項目（匯總時與素材分開） */
+const CURRENCIES = ['金幣','愛心幣','魔物討伐證明','喵幣'];
+
+/* 只能用兌換取得的中間品：素材匯總會自動換算成該兌換所需的材料 */
+const CHAIN_ITEMS=['格莉娜的蘋果奶茶','格莉娜手工蛋糕','凱琳特製全麥麵包','無主的小說書','特蕾西的原木音樂盒','麥爾坎的鬆軟羊毛枕頭','健康飲料','用心準備的花束','古樸的包裝紙'];
+
+/* ===== 解析 ===== */
+function parse(raw, type){
+  return raw.trim().split('\n').filter(l=>l.trim()).map(l=>{
+    const [region,npc,give,get,lim,per,flag]=l.split('|').map(s=>s.trim());
+    const mats=[]; const re=/(.+?)\*(\d+)(?:\+|$)/g; let m;
+    while((m=re.exec(give))) mats.push([m[1],+m[2]]);
+    return {id:type+':'+region+':'+npc+':'+give+':'+get, type, region, npc, give:mats, get, lim:+lim, per, acct:flag==='a'};
+  });
+}
+const ITEMS=[...parse(BOARD_RAW,'board'),...parse(BARTER_RAW,'barter')];
+const BYID=Object.fromEntries(ITEMS.map(i=>[i.id,i]));
+const CHAIN={};
+for(const it of ITEMS){ if(it.type!=='barter') continue;
+  const m=it.get.match(/^(.+?)(?:×(\d+))?$/); const name=m[1];
+  if(CHAIN_ITEMS.includes(name)&&!CHAIN[name]){ it.yieldOf=name; it.yieldQty=+(m[2]||1); CHAIN[name]=it; } }
+const REGIONS=[...new Set(ITEMS.map(i=>i.region))];
+const PER_LABEL={d:'每日',w:'每週',o:'一次性',i:'不限'};
+const _sid={};
+const SHOP=SHOP_RAW.trim().split('\n').filter(l=>l.trim()).map(l=>{
+  const [itemRaw,npc,region,price,cur,lim,per,flag]=l.split('|').map(x=>x.trim());
+  const [item,pack]=itemRaw.split('*');
+  let sid='shop:'+itemRaw+':'+npc+':'+cur; _sid[sid]=(_sid[sid]||0)+1; if(_sid[sid]>1) sid+='#'+_sid[sid];
+  return {id:sid, item, pack:+(pack||1), npc, region, price:+price, cur,
+    lim: lim==='?'?-1:+lim, per, acct:flag==='a'};
+});
+const SHOP_BY_ITEM=SHOP.reduce((a,x)=>((a[x.item]=a[x.item]||[]).push(x),a),{});
+const SHOP_BYID=Object.fromEntries(SHOP.map(x=>[x.id,x]));
+const UNLIMITED='各地不限購';
+
+/* ===== 狀態 ===== */
+const KEY='mabiM-ledger-v1';
+const ACCT='@acct';
+const ACCT_CHAR={id:ACCT,name:'帳號共用'};
+const uid=()=>Math.random().toString(36).slice(2,9);
+const MAX_CHARS=6; // 本尊＋5 個分身
+function defaultState(){
+  const chars=[{id:uid(),name:'本尊'}];
+  for(let i=1;i<=5;i++) chars.push({id:uid(),name:'分身'+i});
+  return {chars, cur:chars[0].id, track:{}, shop:{}, shopT:{}, dk:'', wk:'',
+    ui:{tab:'sum', sumType:'all', sumScope:'cur', buyScope:'cur', progScope:'cur', sumSort:'qty', expand:true, recType:'all', recRegion:'', onlyTracked:false, shopRegion:'', shopCur:'all', hideUnl:false, shopOnly:false}};
+}
+let S;
+try{ S=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){ S=null; }
+if(!S||!Array.isArray(S.chars)||!S.chars.length) S=defaultState();
+S.chars=S.chars.slice(0,MAX_CHARS);
+S.ui=Object.assign(defaultState().ui,S.ui||{}); S.track=S.track||{}; S.shop=S.shop||{}; S.shopT=S.shopT||{};
+if(S.ui.tab==='prog') S.ui.tab='sum';
+if(!['sum','rec','buy','shopset'].includes(S.ui.tab)) S.ui.tab=S.ui.tab==='shop'?'shopset':'sum';
+if(S.ui.lastBB==='prog') S.ui.lastBB='sum';
+for(const k of ['sumScope','buyScope','progScope']) if(!['all','cur',ACCT].includes(S.ui[k])){ if(S.chars.some(c=>c.id===S.ui[k])) S.cur=S.ui[k]; S.ui[k]=S.ui[k]?'cur':'all'; }
+for(const cid in S.track) for(const k of Object.keys(S.track[cid])) if(k.includes('\u5e03\u544a\u6b04')){ S.track[cid][k.replaceAll('\u5e03\u544a\u6b04','\u4f48\u544a\u6b04')]=S.track[cid][k]; delete S.track[cid][k]; }
+function save(){ try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} }
+const bucketOf=(x,cid)=>x.acct?ACCT:cid;
+
+/* ===== 重置（台灣時間 06:00；週一 06:00）===== */
+function periodKeys(now=Date.now()){
+  const t=new Date(now+2*3600e3); // UTC+8 再扣 6 小時
+  const day=t.toISOString().slice(0,10);
+  const dow=(t.getUTCDay()+6)%7; // 週一=0
+  const mon=new Date(t.getTime()-dow*86400e3).toISOString().slice(0,10);
+  return {day,mon};
+}
+function nextReset(now=Date.now()){
+  const t=now+8*3600e3; const d=new Date(t);
+  let next=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate(),6);
+  if(next<=t) next+=86400e3;
+  const dayLeft=next-t; const dow=(new Date(next).getUTCDay()+6)%7;
+  return {dayLeft, weekLeft:dayLeft+((7-dow)%7)*86400e3};
+}
+function applyResets(){
+  const {day,mon}=periodKeys(); let changed=false;
+  const rd=S.dk&&S.dk!==day, rw=S.wk&&S.wk!==mon;
+  if(rd||rw){
+    for(const cid in S.track) for(const iid in S.track[cid]){ const it=BYID[iid]; if(!it) continue;
+      if(((it.per==='d'||it.per==='i')&&rd)||(it.per==='w'&&rw)){ S.track[cid][iid].d=0; changed=true; } }
+    for(const cid in S.shop) for(const sid in S.shop[cid]){ const x=SHOP_BYID[sid];
+      if(!x||((x.per==='w'||x.per==='n')&&rw)||(x.per==='d'&&rd)){ delete S.shop[cid][sid]; changed=true; } }
+  }
+  if(S.dk!==day||S.wk!==mon){ S.dk=day; S.wk=mon; changed=true; }
+  if(changed) save();
+  return rd||rw;
+}
+function fmtLeft(ms){ const h=Math.floor(ms/3600e3), m=Math.floor(ms%3600e3/60e3);
+  return h>=24? `${Math.floor(h/24)}天${h%24}時` : `${h}時${String(m).padStart(2,'0')}分`; }
+function renderResets(){ const {dayLeft,weekLeft}=nextReset();
+  $('#rDay').textContent=`每日 06:00 重置・剩 ${fmtLeft(dayLeft)}`;
+  $('#rWeek').textContent=`每週一 06:00 重置・剩 ${fmtLeft(weekLeft)}`; }
+
+/* ===== 工具 ===== */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num=v=>v.toLocaleString();
+const rec=(cid,iid)=>(S.track[cid]||{})[iid];
+function setRec(cid,iid,v){ S.track[cid]=S.track[cid]||{}; if(v) S.track[cid][iid]=v; else delete S.track[cid][iid]; save(); }
+const charName=id=>id===ACCT?'帳號共用':(S.chars.find(c=>c.id===id)||{}).name||'';
+const typeOk=(it,t)=>t==='all'||it.type===t;
+const priceTxt=x=>x.cur==='金幣'?`${num(x.price)}`:`${num(x.price)} ${x.cur}`;
+const limTxt=x=> x.lim===0?'不限購': x.lim<0?'限購數量待確認': x.per==='o'?`每個角色限購 ${x.lim} 次（不重置）`:`每${x.per==='d'?'日':'週'}限購 ${x.lim}${x.pack>1?' 次':' 個'}`;
+let toastT;
+function toast(msg){ let el=$('.toast'); if(!el){el=document.createElement('div');el.className='toast';document.body.appendChild(el);}
+  el.textContent=msg; el.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>el.hidden=true,1800); }
+function segHTML(id,opts,val){ $(id).innerHTML=opts.map(([v,l])=>`<button data-v="${v}" aria-pressed="${v===val}">${l}</button>`).join(''); }
+const TYPE_OPTS=[['all','綜合'],['board','佈告欄'],['barter','以物易物']];
+const hasAcct=ITEMS.some(i=>i.acct);
+
+/* ===== 角色範圍 chips：全部角色 / 各角色（同時切換目前角色）/ 帳號共用 ===== */
+function scopeChips(el, key, withAcct){
+  const v=S.ui[key];
+  const h=[`<button class="chip" data-scope="all" aria-pressed="${v==='all'}">全部角色</button>`,
+    ...S.chars.map(c=>`<button class="chip" data-cid="${c.id}" aria-pressed="${v==='cur'&&c.id===S.cur}">${esc(c.name)}</button>`),
+    ...(withAcct?[`<button class="chip" data-scope="${ACCT}" aria-pressed="${v===ACCT}">帳號共用</button>`]:[])];
+  $(el).innerHTML=h.join('');
+}
+function scopeClick(e,key,rerender){ const b=e.target.closest('.chip'); if(!b) return;
+  if(b.dataset.cid){ S.cur=b.dataset.cid; S.ui[key]='cur'; } else S.ui[key]=b.dataset.scope;
+  save(); rerender(); }
+function charChips(el){ $(el).innerHTML=S.chars.map(c=>`<button class="chip" data-cid="${c.id}" aria-pressed="${c.id===S.cur}">${esc(c.name)}</button>`).join(''); }
+
+/* ===== 匯總 ===== */
+function buckets(scope){
+  if(scope==='all') return [...S.chars, ...(hasAcct?[ACCT_CHAR]:[])];
+  if(scope===ACCT) return [ACCT_CHAR];
+  if(scope==='cur') return [...S.chars.filter(c=>c.id===S.cur), ...(hasAcct?[ACCT_CHAR]:[])]; // 個別角色也算入帳號共用項目
+  return S.chars.filter(c=>c.id===scope);
+}
+function compute(type, scope, expand=S.ui.expand){
+  const chars=buckets(scope);
+  const mats={}; let tracked=0, runsLeft=0;
+  const add=(name,qty,c,src)=>{
+    const m=mats[name]||(mats[name]={name,total:0,per:{},src:[],kinds:new Set()});
+    m.total+=qty; m.per[c.id]=(m.per[c.id]||0)+qty; m.kinds.add(src.it.type); m.src.push(src);
+  };
+  // 已追蹤的兌換預計產出（用來扣掉，避免重複計算）
+  const avail={};
+  if(expand) for(const c of [...S.chars,ACCT_CHAR]){ const tr=S.track[c.id]||{};
+    for(const iid in tr){ const it=BYID[iid]; if(!it||!it.yieldOf||!tr[iid].t) continue;
+      const k=c.id+'|'+it.yieldOf; avail[k]=(avail[k]||0)+Math.max(0,tr[iid].t-tr[iid].d)*it.yieldQty; } }
+  const need=(name,qty,c,base,via,depth)=>{
+    if(expand&&depth<6){
+      const rcp=RECIPES[name];
+      if(rcp){ for(const [sub,sq] of rcp) need(sub,qty*sq,c,base,`${via?via+' → ':''}做 ${name}×${qty}`,depth+1); return; }
+      const ch=CHAIN[name];
+      if(ch){
+        const k=bucketOf(ch,c.id)+'|'+name, cov=Math.min(qty,avail[k]||0);
+        if(cov){ avail[k]-=cov; qty-=cov; }
+        if(!qty) return;
+        const runs=Math.ceil(qty/ch.yieldQty);
+        for(const [g,q] of ch.give) need(g,runs*q,c,base,`${via?via+' → ':''}向${ch.npc}換 ${name}×${runs*ch.yieldQty}（${runs} 次，${ch.per==='d'?'每日':'每週'}上限 ${ch.lim}）`,depth+1);
+        return;
+      }
+    }
+    add(name,qty,c,{...base,need:qty,via});
+  };
+  for(const c of chars){ const tr=S.track[c.id]||{};
+    for(const iid in tr){ const it=BYID[iid]; if(!it||!typeOk(it,type)) continue;
+      if(!!it.acct!==(c.id===ACCT)) continue;
+      const r=tr[iid]; if(!r.t) continue; tracked++;
+      const left=Math.max(0,r.t-r.d); runsLeft+=left; if(!left) continue;
+      for(const [name,q] of it.give) need(name,left*q,c,{c:c.name,it,left},'',0);
+    }}
+  return {chars,mats:Object.values(mats),tracked,runsLeft};
+}
+function shopInfo(name, chars){
+  const list=SHOP_BY_ITEM[name]; if(!list) return null;
+  const gold=list.filter(x=>x.cur==='金幣');
+  const best=(gold.length?gold:list).reduce((a,x)=>(!a||x.price/x.pack<a.price/a.pack)?x:a,null);
+  const leftOf=rows=>{ let left=0;
+    for(const x of rows){ if(x.lim<=0) return Infinity;
+      const cs=x.acct?[ACCT_CHAR]:chars.filter(c=>c.id!==ACCT);
+      for(const c of cs) left+=Math.max(0,x.lim-((S.shop[c.id]||{})[x.id]||0))*x.pack; }
+    return left; };
+  return {best, left:leftOf(list), goldLeft:leftOf(gold), goldUnit: gold.length?Math.min(...gold.map(x=>x.price/x.pack)):null, list};
+}
+const fmtQty=v=>v===Infinity?'不限':num(v);
+let openMat=null;
+function matTable(mats, chars, multi, title){
+  if(!mats.length) return '';
+  let h=title?`<h4 class="sub">${title}</h4>`:'';
+  h+=`<div class="tablebox"><table><thead><tr><th>${title&&title.startsWith('貨幣')?'貨幣':'素材'}</th><th>合計</th><th>商店單價・本週可買</th>${multi?chars.map(c=>`<th>${esc(c.name)}</th>`).join(''):''}</tr></thead><tbody>`;
+  for(const m of mats){
+    const kinds=[...m.kinds].map(k=>`<span class="kind ${k}">${k==='board'?'佈告欄':'易物'}</span>`).join('');
+    const si=shopInfo(m.name,chars);
+    h+=`<tr class="mat" data-mat="${esc(m.name)}" tabindex="0"><td>${esc(m.name)}${S.ui.sumType==='all'?kinds:''}</td><td class="total">${num(m.total)}</td><td class="shop">${si?`<b>${esc(priceTxt(si.best))}</b>${si.best.pack>1?`/${si.best.pack}個`:''} ・ ${fmtQty(si.left)}`:'–'}</td>${multi?chars.map(c=>{const v=m.per[c.id]||0;return `<td class="c ${v?'':'z'}">${v?num(v):'–'}</td>`}).join(''):''}</tr>`;
+    if(openMat===m.name){
+      h+=`<tr class="src"><td colspan="${3+(multi?chars.length:0)}"><ul>${m.src.map(s=>`<li><b>${esc(s.c)}</b>・${esc(s.it.region)} ${esc(s.it.npc)}：${esc(s.it.give.map(g=>g[0]+'×'+g[1]).join('、'))}${s.it.type==='board'?'':' → '+esc(s.it.get)}，剩 ${s.left} 次（需 ${num(s.need)}${s.via?`，用於 ${esc(s.via)}`:''}）</li>`).join('')}${si?si.list.map(x=>`<li>商店：${esc(x.region)} ${esc(x.npc)}，${x.pack>1?`${x.pack} 個`:'每個'} ${esc(priceTxt(x))}${x.cur==='金幣'?' 金幣':''}，${limTxt(x)}${x.acct?'（帳號共用）':''}</li>`).join(''):''}</ul></td></tr>`;
+    }
+  }
+  return h+'</tbody></table></div>';
+}
+function renderSum(){
+  segHTML('#sumType',TYPE_OPTS,S.ui.sumType);
+  if(!S.chars.some(c=>c.id===S.cur)) S.cur=S.chars[0].id;
+  scopeChips('#sumScope','sumScope',hasAcct);
+  $('#sumSort').value=S.ui.sumSort; $('#expand').checked=S.ui.expand;
+  const {chars,mats,tracked,runsLeft}=compute(S.ui.sumType,S.ui.sumScope);
+  mats.sort(S.ui.sumSort==='qty'?(a,b)=>b.total-a.total||a.name.localeCompare(b.name,'zh-Hant'):(a,b)=>a.name.localeCompare(b.name,'zh-Hant'));
+  const mat=mats.filter(m=>!CURRENCIES.includes(m.name)), cur=mats.filter(m=>CURRENCIES.includes(m.name));
+  let cost=0; for(const m of mat){ const si=shopInfo(m.name,chars); if(si&&si.goldUnit!=null) cost+=Math.min(m.total,si.goldLeft)*si.goldUnit; }
+  const pr=progRows(S.ui.sumScope).filter(r=>typeOk(r.it,S.ui.sumType));
+  $('#stats').innerHTML=`
+    <div class="stat"><b>${mat.length}</b><span>需要的素材種類</span></div>
+    <div class="stat"><b>${pr.reduce((a,r)=>a+r.left,0)}</b><span>剩餘交換／交付次數</span></div>
+    <div class="stat"><b>${pr.filter(r=>!r.left).length} / ${pr.length}</b><span>已完成項目</span></div>
+    <div class="stat"><b>${num(Math.round(cost))}</b><span>能用商店補的部分約需金幣</span></div>`;
+  renderProgSec(); renderQuick();
+  if(!mats.length&&pr.length){ $('#sumBody').innerHTML=`<div class="empty"><b>素材都備齊了</b>追蹤中的項目都已完成，或不需要再準備材料。</div>`; return; }
+  if(!mats.length){
+    $('#progSec').hidden=true;
+    $('#sumBody').innerHTML=`<div class="empty"><b>目前沒有需要準備的素材</b>到「勾選追蹤項目」勾選要做的佈告欄任務或兌換項目，這裡就會算出每個角色還需要多少材料。<div style="margin-top:12px"><button class="btn primary" data-go="rec">去勾選追蹤項目</button></div></div>`; return; }
+  const multi=chars.length>1;
+  const usedChars=multi?chars.filter(c=>c.id!==ACCT||mats.some(m=>m.per[ACCT])):chars;
+  $('#sumBody').innerHTML=matTable(mat,usedChars,multi,cur.length?'素材':'')+matTable(cur,usedChars,multi,'貨幣（與金幣分開計算）');
+}
+
+/* ===== 紀錄 ===== */
+function recRow(it,key,withChk){
+  const r=rec(key,it.id); const on=!!(r&&r.t); const done=on&&r.d>=r.t;
+  const lt= it.per==='i'?'不限次數': it.per==='o'?'一次性':`${PER_LABEL[it.per]} ${it.lim} 次`;
+  const rcp=it.give.map(g=>RECIPES[g[0]]?`1 份 ${g[0]}＝${RECIPES[g[0]].map(x=>x[0]+'×'+x[1]).join('＋')}`:'').filter(Boolean).join('；');
+  return `<div class="item ${withChk?'':'nochk'} ${on?'':'off'} ${!withChk&&done?'done':''}" data-iid="${esc(it.id)}" data-bk="${key}">
+    ${withChk?`<input type="checkbox" class="chk" ${on?'checked':''} aria-label="追蹤 ${esc(it.npc)} ${esc(it.type==='board'?it.give.map(g=>g[0]).join('、'):it.get)}">`:''}
+    ${withChk&&it.type==='barter'
+      ? `<div class="trade"><div class="give">${esc(it.get)}<span class="lim ${it.per}">${lt}</span>${it.acct?'<span class="kind acct">帳號共用</span>':''}</div><div class="get">需要 ${it.give.map(g=>`${esc(g[0])}×${g[1]}`).join('＋')}${rcp?`<br>${esc(rcp)}`:''}</div></div>`
+      : `<div class="trade"><div class="give">${it.give.map(g=>`${esc(g[0])} <em>×${g[1]}</em>`).join('＋')}<span class="lim ${it.per}">${lt}</span>${it.acct?'<span class="kind acct">帳號共用</span>':''}${!withChk&&it.type==='board'?'<span class="kind board">佈告欄</span>':''}</div><div class="get">${withChk?'':`${esc(it.region)}・${esc(it.npc)}　`}${it.type==='board'?'':'→ '+esc(it.get)}${rcp?`${it.type==='board'?'':'<br>'}${esc(rcp)}`:''}</div></div>`}
+    ${withChk
+      ? (it.per==='o'?'':`<div class="ctr"><span class="val" style="min-width:auto">目標</span><button data-a="tminus" aria-label="減少目標">−</button><span class="val"><input type="text" inputmode="numeric" data-a="target" value="${on?r.t:''}" aria-label="目標次數"> 次</span><button data-a="tplus" aria-label="增加目標">＋</button>${it.per!=='i'?`<button class="txt" data-a="tmax">最大值</button>`:''}</div>`)
+      : `<div class="ctr">${it.per!=='o'?`<button class="txt" data-a="clear">清空</button>`:''}<button data-a="minus" aria-label="減少">−</button><span class="val">${r.d} / ${r.t}</span><button data-a="plus" aria-label="增加">＋</button>${it.per!=='o'?`<button class="txt" data-a="max">最大值</button>`:''}</div>`}
+  </div>`;
+}
+function progRows(scope){
+  const cs= scope==='all'? [...S.chars,ACCT_CHAR] : scope===ACCT? [ACCT_CHAR] : [...S.chars.filter(c=>c.id===S.cur),ACCT_CHAR];
+  const rows=[];
+  for(const c of cs){ const T=S.track[c.id]||{};
+    for(const iid in T){ const it=BYID[iid], r=T[iid]; if(!it||!r.t) continue; if(!!it.acct!==(c.id===ACCT)) continue;
+      rows.push({it,c,r,left:Math.max(0,r.t-r.d)}); } }
+  return rows;
+}
+const BOARD_REGIONS=[...new Set(ITEMS.filter(i=>i.type==='board').map(i=>i.region))];
+let quickArm=null, quickT;
+function renderQuick(){
+  const show=S.ui.sumScope==='cur'&&S.ui.sumType!=='barter';
+  $('#quick').hidden=!show; if(!show) return;
+  $('#quickBtns').innerHTML=BOARD_REGIONS.map(reg=>{
+    const rs=ITEMS.filter(x=>x.type==='board'&&x.region===reg).map(x=>rec(S.cur,x.id)).filter(r=>r&&r.t);
+    const left=rs.reduce((a,r)=>a+Math.max(0,r.t-r.d),0);
+    if(!rs.length) return `<button class="qbtn" disabled><b>${esc(reg)}</b><span>未追蹤</span></button>`;
+    if(quickArm===reg) return `<button class="qbtn armed" data-qreg="${esc(reg)}" data-qa="clear"><b>${esc(reg)}</b><span>再按一次清空</span></button>`;
+    return left? `<button class="qbtn" data-qreg="${esc(reg)}" data-qa="done"><b>${esc(reg)}</b><span>剩 ${left} 次・一鍵完成</span></button>`
+               : `<button class="qbtn done" data-qreg="${esc(reg)}" data-qa="arm"><b>✓ ${esc(reg)}</b><span>本週已完成</span></button>`;
+  }).join('');
+}
+$('#quickBtns').onclick=e=>{
+  const b=e.target.closest('[data-qreg]'); if(!b) return; const reg=b.dataset.qreg, a=b.dataset.qa;
+  clearTimeout(quickT);
+  if(a==='arm'){ quickArm=reg; quickT=setTimeout(()=>{quickArm=null;renderQuick();},3000); renderQuick(); return; }
+  quickArm=null;
+  for(const x of ITEMS.filter(x=>x.type==='board'&&x.region===reg)){ const r=rec(S.cur,x.id); if(r&&r.t){ r.d= a==='done'?r.t:0; setRec(S.cur,x.id,r); } }
+  render(); toast(a==='done'?`${charName(S.cur)}：${reg} 佈告欄已全部完成`:`${charName(S.cur)}：${reg} 佈告欄進度已清空`);
+};
+function renderProgSec(){
+  const scope=S.ui.sumScope;
+  $('#progSec').hidden= scope==='all';
+  if(scope==='all') return;
+  $('#resetChar').hidden= scope!=='cur';
+  const rows=progRows(scope).filter(r=>typeOk(r.it,S.ui.sumType));
+  if(!rows.length){ $('#progBody').innerHTML=`<div class="empty"><b>${esc(scope===ACCT?'帳號共用':charName(S.cur))}還沒有追蹤的項目</b>到「勾選追蹤項目」設定要做的佈告欄任務或兌換。<div style="margin-top:12px"><button class="btn primary" data-go="rec">去勾選追蹤項目</button></div></div>`; return; }
+  const order=it=>REGIONS.indexOf(it.region)*2+(it.type==='board'?0:1);
+  rows.sort((a,b)=>order(a.it)-order(b.it));
+  const groups=[['還沒做完',rows.filter(r=>r.left)],['已完成',rows.filter(r=>!r.left)]];
+  $('#progBody').innerHTML=groups.filter(g=>g[1].length).map(([title,rs])=>`<div class="region"><h3>${title}<small>${rs.length} 項</small></h3><div class="npc">${rs.map(r=>recRow(r.it,r.c.id,false)).join('')}</div></div>`).join('');
+}
+function renderRec(){
+  if(!S.chars.some(c=>c.id===S.cur)) S.cur=S.chars[0].id;
+  charChips('#recChars');
+  segHTML('#recType',TYPE_OPTS.map(([v,l])=>[v,v==='all'?'全部':l]),S.ui.recType);
+  $('#recRegion').innerHTML=`<option value="">全部地區</option>`+REGIONS.map(r=>`<option ${r===S.ui.recRegion?'selected':''}>${esc(r)}</option>`).join('')+`<option value="${ACCT}" ${S.ui.recRegion===ACCT?'selected':''}>帳號共用項目</option>`;
+  $('#onlyTracked').checked=S.ui.onlyTracked;
+  const q=($('#recSearch').value||'').trim();
+  const R=it=>rec(bucketOf(it,S.cur),it.id);
+  let tot=0,dn=0; const mine=S.track[S.cur]||{};
+  for(const iid in mine){ if(!BYID[iid]||!mine[iid].t) continue; tot+=mine[iid].t; dn+=Math.min(mine[iid].d,mine[iid].t); }
+  const list=ITEMS.filter(it=>typeOk(it,S.ui.recType)&&(!S.ui.recRegion||(S.ui.recRegion===ACCT?it.acct:it.region===S.ui.recRegion))
+    &&(!S.ui.onlyTracked||(R(it)&&R(it).t))
+    &&(!q||(it.npc+it.get+it.give.map(g=>g[0]).join('')+it.region).includes(q)));
+  if(!list.length){ $('#recBody').innerHTML=`<div class="empty"><b>沒有符合的項目</b>${S.ui.onlyTracked?'取消「只看已追蹤」或':'試試'}換個關鍵字或地區。</div>`; return; }
+  const order=it=>REGIONS.indexOf(it.region)*2+(it.type==='board'?0:1);
+  list.sort((a,b)=>order(a)-order(b));
+  let h='', lastR='', lastN='';
+  const closeNpc=()=>{ if(lastN) h+='</div>'; };
+  for(const it of list){
+    if(it.region!==lastR){ closeNpc(); if(lastR) h+='</div>'; lastR=it.region; lastN='';
+      let rb='';
+      if(S.ui.recType==='board'){ const bs=ITEMS.filter(x=>x.type==='board'&&x.region===it.region);
+        const full=bs.every(x=>{const r=rec(bucketOf(x,S.cur),x.id); return r&&r.t===x.lim;});
+        rb=`<button class="btn" data-bulk="${full?'off':'max'}" data-region="${esc(it.region)}" style="margin-left:auto">${full?'全選取消追蹤':'全選最大值'}</button>`; }
+      h+=`<div class="region"><h3>${esc(it.region)}<small>${list.filter(x=>x.region===it.region).length} 項</small>${rb}</h3>`; }
+    const nk=it.type+it.npc;
+    if(nk!==lastN){ closeNpc(); lastN=nk; h+=`<div class="npc"><div class="who"><span>${esc(it.npc)}</span>${it.type==='board'?'<span class="kind board">每張卷軸每週 3 次・各角色獨立</span>':''}</div>`; }
+    h+=recRow(it,bucketOf(it,S.cur),true);
+  }
+  closeNpc(); if(lastR) h+='</div>';
+  $('#recBody').innerHTML=h;
+}
+
+/* ===== 商店 ===== */
+const tgt=(bk,sid)=>(S.shopT[bk]||{})[sid]||0;
+const bought=(bk,sid)=>(S.shop[bk]||{})[sid]||0;
+function shopRow(x,bk,need,withChk){
+  const t=tgt(bk,x.id), b=bought(bk,x.id), on=t>0, done=on&&b>=t;
+  return `<div class="item ${withChk?'':'nochk'} ${on?'':'off'} ${!withChk&&done?'done':''}" data-sid="${esc(x.id)}" data-bk="${bk}">
+    ${withChk?`<input type="checkbox" class="chk" ${on?'checked':''} aria-label="追蹤 ${esc(x.item)}">`:''}
+    <div class="trade"><div class="give">${esc(x.item)}${x.pack>1?` <em>×${x.pack}</em>`:''}<span class="lim ${x.lim>0?'w':''}">${limTxt(x)}</span>${x.acct?'<span class="kind acct">帳號共用</span>':''}${need&&need[x.item]?`<span class="kind board">${esc(charName(S.cur))} 需要 ${num(need[x.item])}</span>`:''}</div>
+      <div class="get"><span class="price">${esc(priceTxt(x))}</span>${x.cur==='金幣'?' 金幣':''}${x.pack>1?` / ${x.pack} 個`:''}・${esc(withChk?x.npc:x.region+' '+x.npc)}${!withChk&&on&&!done?`・還要買 ${num(t-b)}${x.cur==='金幣'?`，約 ${num((t-b)*x.price)} 金幣`:''}`:''}</div></div>
+    ${withChk
+      ? `<div class="ctr"><span class="val" style="min-width:auto">目標</span><button data-a="tminus" aria-label="減少目標">−</button><span class="val"><input type="text" inputmode="numeric" data-a="target" value="${on?t:''}" aria-label="目標數量"> 個</span><button data-a="tplus" aria-label="增加目標">＋</button>${x.lim>0?`<button class="txt" data-a="tmax">最大值</button>`:''}</div>`
+      : `<div class="ctr"><button class="txt" data-a="clear">清空</button><button data-a="minus" aria-label="減少">−</button><span class="val">已買 ${b} / ${t}</span><button data-a="plus" aria-label="增加">＋</button><button class="txt" data-a="max">買滿</button></div>`}
+  </div>`;
+}
+function shopAct(e){
+  const row=e.target.closest('.item'); if(!row||!row.dataset.sid) return;
+  const x=SHOP_BYID[row.dataset.sid], bk=row.dataset.bk;
+  const T=S.shopT[bk]=S.shopT[bk]||{}, B=S.shop[bk]=S.shop[bk]||{};
+  if(e.target.classList.contains('chk')){
+    if(e.target.checked){ const nd=compute('all','cur').mats.find(m=>m.name===x.item);
+      T[x.id]= x.lim>0? x.lim : Math.max(1, nd?Math.ceil(nd.total/x.pack):10); }
+    else { delete T[x.id]; delete B[x.id]; }
+    save(); render(); return; }
+  const a=e.target.dataset.a, t=T[x.id]; if(!a||!t||a==='target') return;
+  if(a[0]==='t'){ const cap=x.lim>0?x.lim:Infinity;
+    T[x.id]= a==='tplus'?Math.min(cap,t+1): a==='tminus'?Math.max(1,t-1): x.lim;
+    if((B[x.id]||0)>T[x.id]) B[x.id]=T[x.id]; save(); render(); return; }
+  let b=B[x.id]||0;
+  b= a==='plus'?Math.min(t,b+1): a==='minus'?Math.max(0,b-1): a==='clear'?0: t;
+  if(b) B[x.id]=b; else delete B[x.id]; save(); render();
+}
+function shopTarget(e){
+  if(e.target.dataset.a!=='target') return;
+  const row=e.target.closest('.item'), x=SHOP_BYID[row.dataset.sid], bk=row.dataset.bk;
+  let v=parseInt(e.target.value,10); if(!(v>0)) v=1; if(x.lim>0) v=Math.min(v,x.lim);
+  (S.shopT[bk]=S.shopT[bk]||{})[x.id]=v; const B=S.shop[bk]||{}; if(B[x.id]>v) B[x.id]=v; save(); render();
+}
+function buyRows(scope){
+  const cs= scope==='all'? [...S.chars,ACCT_CHAR] : scope===ACCT? [ACCT_CHAR] : [...S.chars.filter(c=>c.id===S.cur),ACCT_CHAR];
+  const rows=[];
+  for(const c of cs){ const T=S.shopT[c.id]||{};
+    for(const sid in T){ const x=SHOP_BYID[sid]; if(!x||!T[sid]) continue; if(!!x.acct!==(c.id===ACCT)) continue;
+      const b=bought(c.id,sid); rows.push({x,c,t:T[sid],b,left:Math.max(0,T[sid]-b)}); } }
+  return rows;
+}
+function renderBuy(){
+  if(!S.chars.some(c=>c.id===S.cur)) S.cur=S.chars[0].id;
+  if(S.ui.buyScope==='@acct'&&!SHOP.some(x=>x.acct)) S.ui.buyScope='cur';
+  scopeChips('#buyScope','buyScope',SHOP.some(x=>x.acct));
+  const rows=buyRows(S.ui.buyScope);
+  const gold=rows.reduce((a,r)=>a+(r.x.cur==='金幣'?r.left*r.x.price:0),0);
+  const other={}; for(const r of rows) if(r.x.cur!=='金幣'&&r.left) other[r.x.cur]=(other[r.x.cur]||0)+r.left*r.x.price;
+  const done=rows.filter(r=>!r.left).length;
+  $('#buyStats').innerHTML=`
+    <div class="stat"><b>${rows.length}</b><span>必買項目</span></div>
+    <div class="stat"><b>${done} / ${rows.length}</b><span>本週已買齊</span></div>
+    <div class="stat"><b>${num(gold)}</b><span>還需要的金幣</span></div>
+    <div class="stat"><b style="font-size:1rem">${Object.keys(other).length?Object.entries(other).map(([k,v])=>`${num(v)} ${esc(k)}`).join('<br>'):'–'}</b><span>還需要的其他貨幣</span></div>`;
+  if(!rows.length){ $('#buyBody').innerHTML=`<div class="empty"><b>還沒有必買項目</b>到「勾選追蹤項目」勾選一定要買的商品，這裡會列出每個角色本週還要買多少、要花多少錢。<div style="margin-top:12px"><button class="btn primary" data-go="shopset">去勾選追蹤項目</button></div></div>`; return; }
+  const order=x=>[...REGIONS,'多個村莊'].indexOf(x.region);
+  if(S.ui.buyScope!=='all'){
+    rows.sort((a,b)=>(a.left?0:1)-(b.left?0:1)||order(a.x)-order(b.x));
+    const groups=[['要買',rows.filter(r=>r.left)],['已買齊',rows.filter(r=>!r.left)]];
+    $('#buyBody').innerHTML=groups.filter(g=>g[1].length).map(([title,rs])=>`<div class="region"><h3>${title}<small>${rs.length} 項</small></h3><div class="npc">${rs.map(r=>shopRow(r.x,r.c.id,null,false)).join('')}</div></div>`).join('');
+    return;
+  }
+  // 全部角色：表格
+  const items={}; for(const r of rows){ const k=r.x.id; (items[k]=items[k]||{x:r.x,per:{},left:0,t:0}); items[k].per[r.c.id]=r; items[k].left+=r.left; items[k].t+=r.t; }
+  const cols=[...S.chars, ...(rows.some(r=>r.c.id===ACCT)?[ACCT_CHAR]:[])];
+  const list=Object.values(items).sort((a,b)=>b.left-a.left||order(a.x)-order(b.x));
+  let h=`<div class="tablebox"><table><thead><tr><th>商品</th><th>還要買</th><th>單價</th>${cols.map(c=>`<th>${esc(c.name)}</th>`).join('')}</tr></thead><tbody>`;
+  for(const it of list){ const x=it.x;
+    h+=`<tr><td>${esc(x.item)}${x.pack>1?`×${x.pack}`:''}<span class="kind">${esc(x.region==='多個村莊'?'多個村莊':x.region)} ${esc(x.npc.length>8?x.npc.slice(0,8)+'…':x.npc)}</span></td><td class="total">${num(it.left)}</td><td class="shop"><b>${esc(priceTxt(x))}</b></td>${cols.map(c=>{const r=it.per[c.id];return `<td class="c ${r&&r.left?'':'z'}">${r?(r.left?num(r.left):'✓'):'–'}</td>`}).join('')}</tr>`; }
+  $('#buyBody').innerHTML=h+'</tbody></table></div><p class="note">點上方的角色名稱可以切到該角色，直接記錄購買數量。</p>';
+}
+function renderShop(){
+  if(!S.chars.some(c=>c.id===S.cur)) S.cur=S.chars[0].id;
+  charChips('#shopChars');
+  const curs=['all',...new Set(SHOP.map(x=>x.cur))];
+  if(!curs.includes(S.ui.shopCur)) S.ui.shopCur='all';
+  $('#shopCur').innerHTML=curs.map(c=>`<button class="chip" data-cur="${c}" aria-pressed="${c===S.ui.shopCur}">${c==='all'?'全部貨幣':esc(c)}</button>`).join('');
+  const regs=[UNLIMITED,...[...new Set([...REGIONS,...SHOP.map(x=>x.region)])].filter(r=>SHOP.some(x=>x.region===r))];
+  $('#shopRegion').innerHTML=`<option value="">全部地區</option>`+regs.map(r=>`<option ${r===S.ui.shopRegion?'selected':''}>${esc(r)}</option>`).join('')+`<option value="${ACCT}" ${S.ui.shopRegion===ACCT?'selected':''}>帳號共用項目</option>`;
+  const q=($('#shopSearch').value||'').trim();
+  const need=Object.fromEntries(compute('all',S.cur).mats.map(m=>[m.name,m.total]));
+  const curOk=x=>S.ui.shopCur==='all'||x.cur===S.ui.shopCur;
+  const qOk=x=>(!S.ui.shopOnly||tgt(bucketOf(x,S.cur),x.id)>0)&&(!S.ui.hideUnl||x.lim!==0)&&(!q||(x.item+x.npc+x.region+x.cur).includes(q));
+  $('#hideUnl').checked=S.ui.hideUnl; $('#shopOnly').checked=S.ui.shopOnly;
+  let h='';
+  // 各地不限購
+  if(!S.ui.shopRegion||S.ui.shopRegion===UNLIMITED){
+    const un={}; for(const x of SHOP) if(x.lim===0&&curOk(x)&&qOk(x)) (un[x.item+'|'+x.cur]=un[x.item+'|'+x.cur]||[]).push(x);
+    const keys=Object.keys(un);
+    if(keys.length){
+      h+=`<div class="region"><h3>${UNLIMITED}<small>${keys.length} 項</small></h3><div class="npc">`;
+      for(const k of keys){ const rows=un[k], x=rows[0];
+        h+=`<div class="item off"><span class="price" style="min-width:3.4em">${esc(priceTxt(x))}</span>
+          <div class="trade"><div class="give">${esc(x.item)}<span class="lim">不限購</span>${need[x.item]?`<span class="kind board">${esc(charName(S.cur))} 需要 ${num(need[x.item])}</span>`:''}</div><div class="get">${rows.map(r=>esc(r.region)+'・'+esc(r.npc)).join('；')}</div></div></div>`; }
+      h+='</div></div>';
+    }
+  }
+  if(S.ui.shopRegion!==UNLIMITED){
+    const list=SHOP.filter(x=>(!S.ui.shopRegion||(S.ui.shopRegion===ACCT?x.acct:x.region===S.ui.shopRegion))&&curOk(x)&&qOk(x));
+    list.sort((a,b)=>regs.indexOf(a.region)-regs.indexOf(b.region));
+    let lastR='';
+    for(const x of list){
+      if(x.region!==lastR){ if(lastR) h+='</div></div>'; lastR=x.region; h+=`<div class="region"><h3>${esc(x.region)}</h3><div class="npc">`; }
+      const key=bucketOf(x,S.cur);
+      h+=shopRow(x,key,need,true);
+    }
+    if(lastR) h+='</div></div>';
+  }
+  $('#shopBody').innerHTML=h||`<div class="empty"><b>沒有符合的商品</b>換個關鍵字、地區或貨幣試試。</div>`;
+}
+
+const SUBS={bb:[['sum','進度與素材'],['rec','勾選追蹤項目']], shop:[['buy','必買清單'],['shopset','勾選追蹤項目']]};
+function render(){
+  const t=S.ui.tab, g=['sum','rec'].includes(t)?'bb':'shop';
+  $('#tabBB').setAttribute('aria-selected',g==='bb'); $('#tabShop').setAttribute('aria-selected',g==='shop');
+  [['sum','#pSum'],['rec','#pRec'],['buy','#pBuy'],['shopset','#pShop']].forEach(([k,pn])=>{ $(pn).hidden=t!==k; });
+  const nMat=compute('all','all').mats.filter(m=>!CURRENCIES.includes(m.name)).length;
+  const nBuy=buyRows('all').filter(r=>r.left).length;
+  const nProg=progRows('cur').filter(r=>r.left).length;
+  $('#cntBB').textContent=nMat||''; $('#cntShop').textContent=nBuy||'';
+  $('#subTabs').innerHTML=SUBS[g].map(([k,l])=>`<button data-tab="${k}" aria-pressed="${k===t}">${l}${k==='sum'&&nProg?`<span class="cnt">${nProg}</span>`:''}${k==='buy'&&nBuy?`<span class="cnt">${nBuy}</span>`:''}</button>`).join('');
+  if(t==='sum') renderSum(); else if(t==='rec') renderRec(); else if(t==='buy') renderBuy(); else renderShop();
+}
+function go(t){ S.ui.tab=t; save(); render(); }
+
+/* ===== 事件 ===== */
+$('#tabBB').onclick=()=>{ if(!['sum','rec'].includes(S.ui.tab)) go(S.ui.lastBB||'sum'); };
+$('#tabShop').onclick=()=>{ if(S.ui.tab!=='buy'&&S.ui.tab!=='shopset') go(S.ui.lastShop||'buy'); };
+$('#subTabs').onclick=e=>{ const b=e.target.closest('[data-tab]'); if(!b) return; const t=b.dataset.tab;
+  if(['sum','rec'].includes(t)) S.ui.lastBB=t; else S.ui.lastShop=t; go(t); };
+$('#buyScope').onclick=e=>scopeClick(e,'buyScope',render);
+$('#buyBody').addEventListener('click',e=>{ if(e.target.dataset.go){ S.ui.lastShop='shopset'; go('shopset'); return; } shopAct(e); });
+$('#buyBody').addEventListener('change',shopTarget);
+$('#shopBody').addEventListener('click',shopAct);
+$('#shopBody').addEventListener('change',shopTarget);
+$('#sumType').onclick=e=>{const v=e.target.dataset.v; if(v){S.ui.sumType=v;openMat=null;save();renderSum();}};
+$('#sumScope').onclick=e=>scopeClick(e,'sumScope',render);
+$('#sumSort').onchange=e=>{S.ui.sumSort=e.target.value;save();renderSum();};
+$('#expand').onchange=e=>{S.ui.expand=e.target.checked;openMat=null;save();renderSum();};
+$('#sumBody').onclick=e=>{
+  if(e.target.dataset.go){S.ui.lastBB='rec';go('rec');return;}
+  const tr=e.target.closest('tr.mat'); if(tr){openMat=openMat===tr.dataset.mat?null:tr.dataset.mat;renderSum();}};
+$('#sumBody').onkeydown=e=>{ if(e.key==='Enter'&&e.target.matches('tr.mat')) e.target.click(); };
+$('#recChars').onclick=e=>{const c=e.target.dataset.cid; if(c){S.cur=c;save();render();}};
+$('#recType').onclick=e=>{const v=e.target.dataset.v; if(v){S.ui.recType=v;save();renderRec();}};
+$('#recRegion').onchange=e=>{S.ui.recRegion=e.target.value;save();renderRec();};
+$('#recSearch').oninput=()=>renderRec();
+$('#onlyTracked').onchange=e=>{S.ui.onlyTracked=e.target.checked;save();renderRec();};
+function recAct(e){
+  if(e.target.dataset.go){ S.ui.lastBB='rec'; go('rec'); return; }
+  if(e.target.dataset.bulk){ const reg=e.target.dataset.region, on=e.target.dataset.bulk==='max';
+    for(const x of ITEMS.filter(x=>x.type==='board'&&x.region===reg)){ const k=bucketOf(x,S.cur), r=rec(k,x.id);
+      setRec(k,x.id, on?{t:x.lim, d:r?Math.min(r.d,x.lim):0}:null); }
+    render(); toast(on?`${reg} 佈告欄已全部設為最大值`:`${reg} 佈告欄已全部取消追蹤`); return; }
+  const row=e.target.closest('.item'); if(!row||!row.dataset.iid) return; const iid=row.dataset.iid, it=BYID[iid];
+  const key=row.dataset.bk||bucketOf(it,S.cur), r=rec(key,iid);
+  if(e.target.classList.contains('chk')){ setRec(key,iid, e.target.checked?{t:it.lim||1,d:0}:null); render(); return; }
+  const a=e.target.dataset.a; if(!a||!r||a==='target') return;
+  const cap=it.per==='i'?Infinity:it.lim;
+  if(a==='tplus'){ r.t=Math.min(cap,r.t+1); }
+  if(a==='tminus'){ r.t=Math.max(1,r.t-1); r.d=Math.min(r.d,r.t); }
+  if(a==='tmax'){ r.t=it.lim; }
+  if(a==='plus'){ r.d=Math.min(r.t,r.d+1); }
+  if(a==='minus'){ r.d=Math.max(0,r.d-1); }
+  if(a==='max'){ r.d=r.t; }
+  if(a==='clear'){ r.d=0; }
+  setRec(key,iid,r); render();
+}
+function recTarget(e){
+  if(e.target.dataset.a!=='target') return;
+  const row=e.target.closest('.item'), iid=row.dataset.iid, it=BYID[iid], key=row.dataset.bk||bucketOf(it,S.cur), r=rec(key,iid); if(!r) return;
+  let v=parseInt(e.target.value,10); if(!(v>0)) v=1; if(it.per!=='i') v=Math.min(v,it.lim);
+  r.t=v; r.d=Math.min(r.d,v); setRec(key,iid,r); render();
+}
+for(const el of ['#recBody','#progBody']){ $(el).addEventListener('click',recAct); $(el).addEventListener('change',recTarget); }
+let resetArm=false;
+$('#resetChar').onclick=e=>{
+  const b=e.currentTarget;
+  if(!resetArm){ resetArm=true; b.textContent='再按一次確認清空'; b.classList.add('danger','armed'); setTimeout(()=>{resetArm=false;b.textContent='清空本角色進度';b.classList.remove('danger','armed');},3000); return; }
+  resetArm=false; const tr=S.track[S.cur]||{}; for(const k in tr) tr[k].d=0; save();
+  b.textContent='清空本角色進度'; b.classList.remove('danger','armed'); render(); toast(`已清空 ${charName(S.cur)} 的完成次數`);
+};
+$('#copyToAll').onclick=()=>{
+  const src=S.track[S.cur]||{};
+  for(const c of S.chars){ if(c.id===S.cur) continue; const dst=S.track[c.id]=S.track[c.id]||{};
+    for(const k in dst) if(!src[k]) delete dst[k];
+    for(const k in src){ dst[k]={t:src[k].t, d:dst[k]?Math.min(dst[k].d,src[k].t):0}; } }
+  save(); toast(`已把 ${charName(S.cur)} 的追蹤項目套用到 ${S.chars.length-1} 個角色（帳號共用項目不受影響）`);
+};
+$('#shopChars').onclick=e=>{const c=e.target.dataset.cid; if(c){S.cur=c;save();render();}};
+$('#shopCur').onclick=e=>{const c=e.target.dataset.cur; if(c){S.ui.shopCur=c;save();renderShop();}};
+$('#shopRegion').onchange=e=>{S.ui.shopRegion=e.target.value;save();renderShop();};
+$('#shopSearch').oninput=()=>renderShop();
+$('#hideUnl').onchange=e=>{S.ui.hideUnl=e.target.checked;save();renderShop();};
+$('#shopOnly').onchange=e=>{S.ui.shopOnly=e.target.checked;save();renderShop();};
+$('#shopCopyAll').onclick=()=>{
+  const src=S.shopT[S.cur]||{};
+  for(const c of S.chars){ if(c.id===S.cur) continue;
+    const T=S.shopT[c.id]=S.shopT[c.id]||{}, B=S.shop[c.id]=S.shop[c.id]||{};
+    for(const k in T) if(!src[k]){ delete T[k]; delete B[k]; }
+    for(const k in src){ T[k]=src[k]; if(B[k]>src[k]) B[k]=src[k]; } }
+  save(); render(); toast(`已把 ${charName(S.cur)} 的商店追蹤項目套用到 ${S.chars.length-1} 個角色（帳號共用項目不受影響）`);
+};
+
+
+/* 管理面板 */
+const dlg=$('#dlg');
+function renderManage(){
+  $('#charList').innerHTML=S.chars.map(c=>`<div class="charrow" data-cid="${c.id}">
+    <input type="text" id="cn-${c.id}" value="${esc(c.name)}" maxlength="16" aria-label="角色名稱">
+    ${S.chars.length>1?`<button class="btn danger" data-del>刪除</button>`:'<span></span>'}</div>`).join('');
+  $('#addChar').hidden=S.chars.length>=MAX_CHARS;
+  $('#bkOut').value=btoa(unescape(encodeURIComponent(JSON.stringify({v:3,chars:S.chars,track:S.track,shop:S.shop,shopT:S.shopT}))));
+}
+$('#openManage').onclick=()=>{ renderManage(); dlg.showModal(); };
+$('#dlgClose').onclick=()=>{ dlg.close(); };
+dlg.addEventListener('close',()=>render());
+$('#charList').addEventListener('change',e=>{
+  const row=e.target.closest('.charrow'); const c=S.chars.find(x=>x.id===row.dataset.cid);
+  c.name=e.target.value.trim()||c.name; e.target.value=c.name; save(); });
+$('#charList').addEventListener('click',e=>{
+  if(!e.target.hasAttribute('data-del')) return; const b=e.target;
+  if(!b.classList.contains('armed')){ b.classList.add('armed'); b.textContent='確認刪除'; setTimeout(()=>{b.classList.remove('armed');b.textContent='刪除';},3000); return; }
+  const id=b.closest('.charrow').dataset.cid; S.chars=S.chars.filter(c=>c.id!==id); delete S.track[id]; delete S.shop[id]; delete S.shopT[id];
+  if(S.cur===id) S.cur=S.chars[0].id; save(); renderManage(); });
+$('#addChar').onclick=()=>{
+  if(S.chars.length>=MAX_CHARS) return;
+  let n=S.chars.length; let name; do{ name='分身'+n++; }while(S.chars.some(c=>c.name===name));
+  S.chars.push({id:uid(),name}); save(); renderManage(); };
+$('#bkCopy').onclick=async()=>{ const t=$('#bkOut');
+  try{ await navigator.clipboard.writeText(t.value); toast('已複製備份碼'); }catch(e){ t.focus(); t.select(); toast('請手動複製已選取的文字'); } };
+$('#bkApply').onclick=()=>{
+  try{ const o=JSON.parse(decodeURIComponent(escape(atob($('#bkIn').value.trim()))));
+    if(!Array.isArray(o.chars)||!o.chars.length) throw 0;
+    S.chars=o.chars.slice(0,MAX_CHARS); S.track=o.track||{}; S.shop=o.shop||{}; S.shopT=o.shopT||{}; S.cur=S.chars[0].id; save(); renderManage(); $('#bkIn').value=''; toast('已還原備份');
+  }catch(e){ toast('備份碼無法辨識，請確認有完整貼上'); } };
+$('#wipe').onclick=e=>{ const b=e.currentTarget;
+  if(!b.classList.contains('armed')){ b.classList.add('armed'); b.textContent='確認清除全部'; setTimeout(()=>{b.classList.remove('armed');b.textContent='清除所有角色與紀錄';},3000); return; }
+  S=defaultState(); applyResets(); save(); renderManage(); toast('已清除，回到預設角色'); };
+
+$('#dataVer').textContent=DATA_VERSION;
+applyResets(); renderResets(); render();
+setInterval(()=>{ renderResets(); if(applyResets()) { render(); toast('已到重置時間，完成次數已歸零'); } },30000);
+</script>
+
+</body>
+</html>
