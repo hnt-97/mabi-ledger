@@ -92,6 +92,7 @@ td.c.z{color:var(--line)}
 .kind.acct{background:var(--accent-soft);color:var(--accent)}
 .kind.cur{background:var(--sunk);color:var(--ink)}
 h4.sub{margin:6px 0 0;font-size:.95rem}
+.notice-restore{display:grid;gap:6px;background:var(--brass-soft);border:1px solid var(--brass);border-radius:10px;padding:12px}
 .sec-title{font-size:1.2rem;font-weight:700;margin:0}
 #progSec{display:grid;gap:8px}
 #quick{display:grid;gap:6px}
@@ -202,6 +203,7 @@ footer a{color:var(--accent)}
         <label class="tog"><input type="checkbox" id="expand"> 料理與兌換品換算成原料</label>
       </div>
     </div>
+    <div class="notice-restore" id="restoreBar" hidden><b>偵測到備份資料</b><span>要用這份備份取代目前裝置上的紀錄嗎？</span><div class="row"><button class="btn primary" id="rsYes">還原</button><button class="btn" id="rsNo">取消</button></div></div>
     <div class="stats" id="stats"></div>
     <div id="quick" hidden><div class="lbl">佈告欄快速完成</div><div class="qgrid" id="quickBtns"></div></div>
     <div id="sumBody"></div>
@@ -279,9 +281,9 @@ footer a{color:var(--accent)}
     </div>
     <div>
       <div class="lbl">備份</div>
-      <p class="note" style="margin:4px 0 6px">複製備份碼存到記事本；換裝置時貼回下方再按「還原」。</p>
+      <p class="note" style="margin:4px 0 6px">換裝置時，把「還原連結」傳到新裝置上點開就能還原；也可以複製備份碼，貼到下方再按「還原」。</p>
       <textarea id="bkOut" rows="3" readonly></textarea>
-      <div class="row" style="margin-top:6px"><button class="btn" id="bkCopy">複製備份碼</button></div>
+      <div class="row" style="margin-top:6px"><button class="btn primary" id="bkLink" hidden>複製還原連結</button><button class="btn" id="bkCopy">複製備份碼</button><span class="note" id="bkLen"></span></div>
       <textarea id="bkIn" rows="3" placeholder="在這裡貼上備份碼" style="margin-top:10px"></textarea>
       <div class="row" style="margin-top:6px"><button class="btn primary" id="bkApply">還原</button></div>
     </div>
@@ -1105,7 +1107,9 @@ function renderManage(){
     <input type="text" id="cn-${c.id}" value="${esc(c.name)}" maxlength="16" aria-label="角色名稱">
     ${S.chars.length>1?`<button class="btn danger" data-del>刪除</button>`:'<span></span>'}</div>`).join('');
   $('#addChar').hidden=S.chars.length>=MAX_CHARS;
-  $('#bkOut').value=btoa(unescape(encodeURIComponent(JSON.stringify({v:3,chars:S.chars,track:S.track,shop:S.shop,shopT:S.shopT}))));
+  $('#bkOut').value='產生中…';
+  makeBackup().then(code=>{ $('#bkOut').value=code; $('#bkLen').textContent=`共 ${code.length} 字`; });
+  $('#bkLink').hidden=!CAN_LINK;
 }
 $('#openManage').onclick=()=>{ renderManage(); dlg.showModal(); };
 $('#dlgClose').onclick=()=>{ dlg.close(); };
@@ -1122,13 +1126,60 @@ $('#addChar').onclick=()=>{
   if(S.chars.length>=MAX_CHARS) return;
   let n=S.chars.length; let name; do{ name='分身'+n++; }while(S.chars.some(c=>c.name===name));
   S.chars.push({id:uid(),name}); save(); renderManage(); };
+/* ===== 備份：精簡格式（以短代碼取代項目名稱，再壓縮），可貼上或用連結還原 ===== */
+const hcode=k=>{ let h=5381; for(const ch of k) h=((h*33)^ch.codePointAt(0))>>>0; return h.toString(36); };
+const HMAP={}; for(const it of ITEMS) HMAP[hcode(it.id)]=it.id; for(const x of SHOP) HMAP[hcode(x.id)]=x.id;
+const CAN_LINK=(()=>{ try{ return window.self===window.top && /^https?:$/.test(location.protocol); }catch(e){ return false; } })();
+const b64u=bytes=>{ let s=''; for(const b of bytes) s+=String.fromCharCode(b); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
+const unb64u=str=>{ str=str.replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4) str+='='; const bin=atob(str); return Uint8Array.from(bin,c=>c.charCodeAt(0)); };
+async function pipe(bytes,stream){ const r=new Response(new Blob([bytes]).stream().pipeThrough(stream)); return new Uint8Array(await r.arrayBuffer()); }
+const canZip=typeof CompressionStream!=='undefined'&&typeof DecompressionStream!=='undefined';
+function packState(){
+  const keyOf=cid=>cid===ACCT?'a':String(S.chars.findIndex(c=>c.id===cid));
+  const pack=(src,fn)=>{ const o={}; for(const cid in src){ const k=keyOf(cid); if(k==='-1') continue;
+    const arr=[]; for(const id in src[cid]){ const v=fn(src[cid][id]); if(v) arr.push([hcode(id),...v]); } if(arr.length) o[k]=arr; } return o; };
+  return {v:4, n:S.chars.map(c=>c.name),
+    t:pack(S.track,r=>r&&r.t?[r.t,r.d||0]:null),
+    b:pack(S.shop,b=>b?[b]:null),
+    g:pack(S.shopT,t=>t?[t]:null)};
+}
+async function makeBackup(){
+  const json=new TextEncoder().encode(JSON.stringify(packState()));
+  if(canZip){ try{ return 'M4'+b64u(await pipe(json,new CompressionStream('deflate-raw'))); }catch(e){} }
+  return 'M4u'+b64u(json);
+}
+async function readBackup(code){
+  code=String(code||'').replace(/\s+/g,'');
+  const m=code.match(/[#&?]r=([^&#]+)/); if(m) code=decodeURIComponent(m[1]);
+  let o;
+  if(code.startsWith('M4u')) o=JSON.parse(new TextDecoder().decode(unb64u(code.slice(3))));
+  else if(code.startsWith('M4')){ if(!canZip) throw new Error('old'); o=JSON.parse(new TextDecoder().decode(await pipe(unb64u(code.slice(2)),new DecompressionStream('deflate-raw')))); }
+  else { o=JSON.parse(decodeURIComponent(escape(atob(code)))); // 舊版備份碼
+    if(!Array.isArray(o.chars)||!o.chars.length) throw 0;
+    return {chars:o.chars.slice(0,MAX_CHARS), track:o.track||{}, shop:o.shop||{}, shopT:o.shopT||{}}; }
+  if(o.v!==4||!Array.isArray(o.n)||!o.n.length) throw 0;
+  const chars=o.n.slice(0,MAX_CHARS).map(name=>({id:uid(),name:String(name).slice(0,16)}));
+  const cidOf=k=>k==='a'?ACCT:(chars[+k]||{}).id;
+  const unpack=(src,fn)=>{ const out={}; for(const k in src||{}){ const cid=cidOf(k); if(!cid) continue; out[cid]={};
+    for(const [h,...v] of src[k]){ const id=HMAP[h]; if(id) out[cid][id]=fn(v); } } return out; };
+  return {chars, track:unpack(o.t,v=>({t:+v[0],d:+v[1]||0})), shop:unpack(o.b,v=>+v[0]), shopT:unpack(o.g,v=>+v[0])};
+}
+function applyBackup(d){ S.chars=d.chars; S.track=d.track; S.shop=d.shop; S.shopT=d.shopT; S.cur=S.chars[0].id; S.ui.sumScope='cur'; save(); }
 $('#bkCopy').onclick=async()=>{ const t=$('#bkOut');
   try{ await navigator.clipboard.writeText(t.value); toast('已複製備份碼'); }catch(e){ t.focus(); t.select(); toast('請手動複製已選取的文字'); } };
-$('#bkApply').onclick=()=>{
-  try{ const o=JSON.parse(decodeURIComponent(escape(atob($('#bkIn').value.trim()))));
-    if(!Array.isArray(o.chars)||!o.chars.length) throw 0;
-    S.chars=o.chars.slice(0,MAX_CHARS); S.track=o.track||{}; S.shop=o.shop||{}; S.shopT=o.shopT||{}; S.cur=S.chars[0].id; save(); renderManage(); $('#bkIn').value=''; toast('已還原備份');
-  }catch(e){ toast('備份碼無法辨識，請確認有完整貼上'); } };
+$('#bkLink').onclick=async()=>{ const url=location.origin+location.pathname+'#r='+$('#bkOut').value;
+  try{ await navigator.clipboard.writeText(url); toast('已複製還原連結，傳到新裝置點開即可'); }catch(e){ const t=$('#bkOut'); t.value=url; t.focus(); t.select(); toast('請手動複製已選取的連結'); } };
+$('#bkApply').onclick=async()=>{
+  try{ applyBackup(await readBackup($('#bkIn').value)); renderManage(); $('#bkIn').value=''; toast('已還原備份'); }
+  catch(e){ toast(e&&e.message==='old'?'這個瀏覽器版本太舊，無法讀取這份備份碼':'備份碼無法辨識，請確認有完整貼上'); } };
+// 用還原連結開啟時
+let pendingRestore=null;
+(async()=>{ const h=location.hash; if(!h.startsWith('#r=')) return;
+  try{ pendingRestore=await readBackup(h); $('#restoreBar').hidden=false; S.ui.tab='sum'; render(); }
+  catch(e){ toast('還原連結無法辨識，可能沒有完整複製'); }
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){} })();
+$('#rsYes').onclick=()=>{ if(pendingRestore){ applyBackup(pendingRestore); pendingRestore=null; } $('#restoreBar').hidden=true; render(); toast('已還原備份'); };
+$('#rsNo').onclick=()=>{ pendingRestore=null; $('#restoreBar').hidden=true; };
 $('#wipe').onclick=e=>{ const b=e.currentTarget;
   if(!b.classList.contains('armed')){ b.classList.add('armed'); b.textContent='確認清除全部'; setTimeout(()=>{b.classList.remove('armed');b.textContent='清除所有角色與紀錄';},3000); return; }
   S=defaultState(); applyResets(); save(); renderManage(); toast('已清除，回到預設角色'); };
