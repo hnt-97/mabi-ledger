@@ -885,11 +885,16 @@ function renderRec(){
 /* ===== 商店 ===== */
 const tgt=(bk,sid)=>(S.shopT[bk]||{})[sid]||0;
 const bought=(bk,sid)=>(S.shop[bk]||{})[sid]||0;
+function needTag(need,item){
+  if(!need) return '';
+  const c=need.cur[item]||0, a=need.all[item]||0; if(!c&&!a) return '';
+  return `<span class="kind board">${c?`${esc(charName(S.cur))} 需要 ${num(c)}・`:''}全部角色 ${num(a)}</span>`;
+}
 function shopRow(x,bk,need,withChk){
   const t=tgt(bk,x.id), b=bought(bk,x.id), on=t>0, done=on&&b>=t;
   return `<div class="item ${withChk?'':'nochk'} ${on?'':'off'} ${!withChk&&done?'done':''}" data-sid="${esc(x.id)}" data-bk="${bk}">
     ${withChk?`<input type="checkbox" class="chk" ${on?'checked':''} aria-label="追蹤 ${esc(x.item)}">`:''}
-    <div class="trade"><div class="give">${esc(x.item)}${x.pack>1?` <em>×${x.pack}</em>`:''}<span class="lim ${x.lim>0?'w':''}">${limTxt(x)}</span>${x.acct?'<span class="kind acct">帳號共用</span>':''}${need&&need[x.item]?`<span class="kind board">${esc(charName(S.cur))} 需要 ${num(need[x.item])}</span>`:''}</div>
+    <div class="trade"><div class="give">${esc(x.item)}${x.pack>1?` <em>×${x.pack}</em>`:''}<span class="lim ${x.lim>0?'w':''}">${limTxt(x)}</span>${x.acct?'<span class="kind acct">帳號共用</span>':''}${needTag(need,x.item)}</div>
       <div class="get"><span class="price">${esc(priceTxt(x))}</span>${x.cur==='金幣'?' 金幣':''}${x.pack>1?` / ${x.pack} 個`:''}・${esc(withChk?x.npc:x.region+' '+x.npc)}${!withChk&&on&&!done?`・還要買 ${num(t-b)}${x.cur==='金幣'?`，約 ${num((t-b)*x.price)} 金幣`:''}`:''}</div></div>
     ${withChk
       ? `<div class="ctr"><span class="val" style="min-width:auto">目標</span><button data-a="tminus" aria-label="減少目標">−</button><span class="val"><input type="text" inputmode="numeric" data-a="target" value="${on?t:''}" aria-label="目標數量"> 個</span><button data-a="tplus" aria-label="增加目標">＋</button>${x.lim>0?`<button class="txt" data-a="tmax">最大值</button>`:''}</div>`
@@ -966,7 +971,7 @@ function renderShop(){
   const regs=[UNLIMITED,...[...new Set([...REGIONS,...SHOP.map(x=>x.region)])].filter(r=>SHOP.some(x=>x.region===r))];
   $('#shopRegion').innerHTML=`<option value="">全部地區</option>`+regs.map(r=>`<option ${r===S.ui.shopRegion?'selected':''}>${esc(r)}</option>`).join('')+`<option value="${ACCT}" ${S.ui.shopRegion===ACCT?'selected':''}>帳號共用項目</option>`;
   const q=($('#shopSearch').value||'').trim();
-  const need=Object.fromEntries(compute('all',S.cur).mats.map(m=>[m.name,m.total]));
+  const need={cur:Object.fromEntries(compute('all',S.cur).mats.map(m=>[m.name,m.total])), all:Object.fromEntries(compute('all','all').mats.map(m=>[m.name,m.total]))};
   const curOk=x=>S.ui.shopCur==='all'||x.cur===S.ui.shopCur;
   const qOk=x=>(!S.ui.shopOnly||tgt(bucketOf(x,S.cur),x.id)>0)&&(!S.ui.hideUnl||x.lim!==0)&&(!q||(x.item+x.npc+x.region+x.cur).includes(q));
   $('#hideUnl').checked=S.ui.hideUnl; $('#shopOnly').checked=S.ui.shopOnly;
@@ -979,7 +984,7 @@ function renderShop(){
       h+=`<div class="region"><h3>${UNLIMITED}<small>${keys.length} 項</small></h3><div class="npc">`;
       for(const k of keys){ const rows=un[k], x=rows[0];
         h+=`<div class="item off"><span class="price" style="min-width:3.4em">${esc(priceTxt(x))}</span>
-          <div class="trade"><div class="give">${esc(x.item)}<span class="lim">不限購</span>${need[x.item]?`<span class="kind board">${esc(charName(S.cur))} 需要 ${num(need[x.item])}</span>`:''}</div><div class="get">${rows.map(r=>esc(r.region)+'・'+esc(r.npc)).join('；')}</div></div></div>`; }
+          <div class="trade"><div class="give">${esc(x.item)}<span class="lim">不限購</span>${needTag(need,x.item)}</div><div class="get">${rows.map(r=>esc(r.region)+'・'+esc(r.npc)).join('；')}</div></div></div>`; }
       h+='</div></div>';
     }
   }
