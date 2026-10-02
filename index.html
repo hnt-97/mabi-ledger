@@ -46,6 +46,8 @@ h1 small{font-size:.9rem;font-weight:400;color:var(--muted);margin-left:.4em;fon
 .subtabs .seg{display:flex;width:100%}
 .subtabs .seg button{flex:1;padding:8px 10px;font-size:.92rem}
 .subtabs .cnt{font-size:.78rem;color:var(--brass);margin-left:4px}
+.sync-chip.on{color:var(--accent);border-color:var(--accent)}
+.sync-chip.warn{color:var(--danger);border-color:var(--danger)}
 .resets .btn{padding:2px 12px;border-radius:999px;font-size:.8rem;color:var(--ink)}
 .item .price-col{display:grid;gap:2px;min-width:3.4em}
 .item .price-col small{font-size:.72rem;color:var(--muted)}
@@ -181,7 +183,7 @@ footer a{color:var(--accent)}
 <div class="wrap">
   <header class="top">
     <h1>瑪奇M 素材帳本<small>佈告欄 × 以物易物 × 商店</small></h1>
-    <div class="resets"><span id="rDay">每日 06:00 重置</span><span id="rWeek">每週一 06:00 重置</span><button class="btn" id="openManage">角色管理</button></div>
+    <div class="resets"><span id="rDay">每日 06:00 重置</span><span id="rWeek">每週一 06:00 重置</span><button class="btn sync-chip" id="syncChip" hidden></button><button class="btn" id="openManage">角色管理</button></div>
   </header>
 
   <div class="sticky">
@@ -286,6 +288,11 @@ footer a{color:var(--accent)}
       <div class="row" style="margin-top:6px"><button class="btn primary" id="bkLink" hidden>複製還原連結</button><button class="btn" id="bkCopy">複製備份碼</button><span class="note" id="bkLen"></span></div>
       <textarea id="bkIn" rows="3" placeholder="在這裡貼上備份碼" style="margin-top:10px"></textarea>
       <div class="row" style="margin-top:6px"><button class="btn primary" id="bkApply">還原</button></div>
+    </div>
+    <div id="syncBox" hidden>
+      <div class="lbl">雲端同步</div>
+      <p class="note" id="syncText" style="margin:4px 0 6px"></p>
+      <div class="row" id="syncBtns"></div>
     </div>
     <div>
       <div class="lbl">全部清除</div>
@@ -633,7 +640,7 @@ if(!['sum','rec','buy','shopset'].includes(S.ui.tab)) S.ui.tab=S.ui.tab==='shop'
 if(S.ui.lastBB==='prog') S.ui.lastBB='sum';
 for(const k of ['sumScope','buyScope','progScope']) if(!['all','cur',ACCT].includes(S.ui[k])){ if(S.chars.some(c=>c.id===S.ui[k])) S.cur=S.ui[k]; S.ui[k]=S.ui[k]?'cur':'all'; }
 for(const cid in S.track) for(const k of Object.keys(S.track[cid])) if(k.includes('\u5e03\u544a\u6b04')){ S.track[cid][k.replaceAll('\u5e03\u544a\u6b04','\u4f48\u544a\u6b04')]=S.track[cid][k]; delete S.track[cid][k]; }
-function save(){ try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} }
+function save(){ try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} try{ window.MabiSync&&window.MabiSync.onSave&&window.MabiSync.onSave(); }catch(e){} }
 const bucketOf=(x,cid)=>x.acct?ACCT:cid;
 
 /* ===== 重置（台灣時間 06:00；週一 06:00）===== */
@@ -1184,10 +1191,124 @@ $('#wipe').onclick=e=>{ const b=e.currentTarget;
   if(!b.classList.contains('armed')){ b.classList.add('armed'); b.textContent='確認清除全部'; setTimeout(()=>{b.classList.remove('armed');b.textContent='清除所有角色與紀錄';},3000); return; }
   S=defaultState(); applyResets(); save(); renderManage(); toast('已清除，回到預設角色'); };
 
+/* ===== 雲端同步介面（GitHub 版載入 Firebase 後才會啟用） ===== */
+window.MabiSync={
+  onSave:null,
+  snapshot:()=>({chars:S.chars,track:S.track,shop:S.shop,shopT:S.shopT,dk:S.dk,wk:S.wk}),
+  isEmpty:()=>![S.track,S.shop,S.shopT].some(o=>Object.values(o).some(v=>Object.keys(v).length)),
+  apply:d=>{ if(!d||!Array.isArray(d.chars)||!d.chars.length) return;
+    S.chars=d.chars.slice(0,MAX_CHARS); S.track=d.track||{}; S.shop=d.shop||{}; S.shopT=d.shopT||{}; S.dk=d.dk||S.dk; S.wk=d.wk||S.wk;
+    if(!S.chars.some(c=>c.id===S.cur)) S.cur=S.chars[0].id;
+    try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){}
+    applyResets(); render(); if(dlg.open) renderManage(); },
+  ui:(chip,text,btns)=>{ const c=$('#syncChip'); c.hidden=false; c.textContent=chip.label; c.className='btn sync-chip '+(chip.cls||'');
+    $('#syncBox').hidden=false; $('#syncText').textContent=text;
+    $('#syncBtns').innerHTML=btns.map((b,i)=>`<button class="btn ${b.primary?'primary':''}" data-sync="${i}">${esc(b.label)}</button>`).join('');
+    $('#syncBtns').onclick=e=>{ const i=e.target.dataset.sync; if(i!=null) btns[+i].fn(); }; },
+  toast:m=>toast(m),
+  openPanel:()=>{ renderManage(); if(!dlg.open) dlg.showModal(); }
+};
+$('#syncChip').onclick=()=>window.MabiSync.openPanel();
 $('#dataVer').textContent=DATA_VERSION;
 applyResets(); renderResets(); render();
 setInterval(()=>{ renderResets(); if(applyResets()) { render(); toast('已到重置時間，完成次數已歸零'); } },30000);
 </script>
 
+<script type="module">
+/* ===== Firebase 雲端同步（Google 登入，每位使用者一份紀錄） ===== */
+const FIREBASE_CONFIG = {"apiKey":"AIzaSyDHQ_FGwE_44-9IpNvNp-3f0horcA8wMv4","authDomain":"mabi-ledger.firebaseapp.com","projectId":"mabi-ledger","storageBucket":"mabi-ledger.firebasestorage.app","messagingSenderId":"554427711915","appId":"1:554427711915:web:dd9c44f41a828fdb4892ee"};
+const V = '12.19.0';
+const M = window.MabiSync;
+
+(async () => {
+  if (!M || !FIREBASE_CONFIG || !FIREBASE_CONFIG.apiKey) return;
+  let A, AU, FS;
+  try {
+    [A, AU, FS] = await Promise.all([
+      import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
+      import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
+      import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`),
+    ]);
+  } catch (e) {
+    M.ui({ label: '同步無法使用', cls: 'warn' }, '雲端同步元件載入失敗，請檢查網路後重新整理。紀錄仍會存在這台裝置。', []);
+    return;
+  }
+  const app = A.initializeApp(FIREBASE_CONFIG);
+  const auth = AU.getAuth(app);
+  const db = FS.getFirestore(app);
+
+  const DEV_KEY = 'mabiM-device';
+  let DEVICE; try { DEVICE = localStorage.getItem(DEV_KEY); if (!DEVICE) { DEVICE = Math.random().toString(36).slice(2, 10); localStorage.setItem(DEV_KEY, DEVICE); } } catch (e) { DEVICE = Math.random().toString(36).slice(2, 10); }
+  const inApp = /Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(navigator.userAgent);
+
+  let ref = null, unsub = null, timer = null, lastSent = '', mode = 'off'; // off | choosing | on
+  const fmt = t => t ? new Date(t).toLocaleString('zh-TW', { hour12: false }) : '';
+
+  function showSignedOut(msg) {
+    M.ui({ label: '☁ 登入同步' },
+      msg || (inApp ? '目前是在 LINE 等 App 內建的瀏覽器開啟，Google 不允許在這裡登入。請點右上角選單，改用 Chrome 或 Safari 開啟這個網址再登入。'
+                     : '用 Google 帳號登入後，電腦和手機的紀錄會自動同步。不登入也可以照常使用，紀錄只存在這台裝置。'),
+      inApp ? [] : [{ label: '使用 Google 登入', primary: true, fn: signIn }]);
+  }
+  function showOn(user, note) {
+    M.ui({ label: '☁ 已同步', cls: 'on' },
+      `已登入 ${user.email || user.displayName || ''}，修改會自動同步到你的其他裝置。${note ? note : ''}`,
+      [{ label: '立即同步', fn: () => push(true) }, { label: '登出', fn: signOut }]);
+  }
+  async function signIn() {
+    try { await AU.signInWithPopup(auth, new AU.GoogleAuthProvider()); }
+    catch (e) {
+      const c = e && e.code || '';
+      if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') return;
+      if (c === 'auth/popup-blocked') M.toast('登入視窗被瀏覽器擋住了，請允許彈出視窗後再試一次');
+      else if (c === 'auth/unauthorized-domain') M.toast('這個網址還沒加入 Firebase 的授權網域');
+      else M.toast('登入失敗，請稍後再試');
+    }
+  }
+  async function signOut() { stop(); await AU.signOut(auth); M.toast('已登出，紀錄會保留在這台裝置'); }
+  function stop() { if (unsub) unsub(); unsub = null; clearTimeout(timer); mode = 'off'; M.onSave = null; }
+
+  const current = () => JSON.stringify(M.snapshot());
+  async function push(now) {
+    if (mode !== 'on' || !ref) return;
+    const data = current();
+    if (data === lastSent && !now) return;
+    try { await FS.setDoc(ref, { data, device: DEVICE, updatedAt: Date.now() }); lastSent = data; if (now) M.toast('已同步'); }
+    catch (e) { M.toast('同步失敗，稍後會再試'); }
+  }
+  function schedule() { if (mode !== 'on') return; clearTimeout(timer); timer = setTimeout(() => push(false), 1200); }
+
+  function listen(user) {
+    unsub = FS.onSnapshot(ref, snap => {
+      if (snap.metadata.hasPendingWrites || mode !== 'on') return;
+      const d = snap.data(); if (!d || !d.data) return;
+      if (d.device === DEVICE || d.data === lastSent) return;
+      lastSent = d.data;
+      try { M.apply(JSON.parse(d.data)); lastSent = current(); showOn(user, `（${fmt(d.updatedAt)} 從其他裝置更新）`); } catch (e) {}
+    }, () => M.toast('同步連線中斷，重新整理後會再連線'));
+  }
+
+  async function start(user) {
+    ref = FS.doc(db, 'users', user.uid);
+    let snap;
+    try { snap = await FS.getDoc(ref); }
+    catch (e) { M.ui({ label: '同步無法使用', cls: 'warn' }, '讀取雲端紀錄失敗，可能是資料庫規則尚未設定。紀錄仍會存在這台裝置。', [{ label: '登出', fn: signOut }]); return; }
+    const remote = snap.exists() ? snap.data() : null;
+    const begin = () => { mode = 'on'; M.onSave = schedule; listen(user); showOn(user); };
+    if (!remote || !remote.data) { mode = 'on'; await push(true); begin(); return; }
+    if (remote.data === current() || M.isEmpty()) { M.apply(JSON.parse(remote.data)); lastSent = current(); begin(); return; }
+    // 兩邊都有紀錄且不同：讓使用者決定
+    mode = 'choosing';
+    M.ui({ label: '☁ 請選擇紀錄', cls: 'warn' },
+      `雲端已有紀錄（最後更新：${fmt(remote.updatedAt)}），和這台裝置上的不一樣。要保留哪一份？另一份會被取代。`,
+      [{ label: '使用雲端紀錄', primary: true, fn: () => { M.apply(JSON.parse(remote.data)); lastSent = current(); begin(); M.toast('已改用雲端紀錄'); } },
+       { label: '用這台裝置的紀錄覆蓋雲端', fn: async () => { mode = 'on'; await push(true); begin(); } },
+       { label: '登出', fn: signOut }]);
+    M.openPanel();
+  }
+
+  AU.onAuthStateChanged(auth, user => { stop(); if (user) start(user); else showSignedOut(); });
+})();
+</script>
 </body>
 </html>
