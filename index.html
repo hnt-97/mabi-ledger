@@ -110,6 +110,7 @@ h4.sub{margin:6px 0 0;font-size:.95rem}
 .qbtn:disabled{opacity:.45;cursor:default}
 @media (max-width:520px){.qgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 td.shop{color:var(--muted);font-size:.85rem}
+tr.grp td{background:var(--sunk);font-weight:700;font-size:.82rem;color:var(--ink);text-align:left;position:static}
 td.shop b{color:var(--accent);font-weight:700}
 .price{font-variant-numeric:tabular-nums;color:var(--accent);font-weight:700}
 .kind{display:inline-block;font-size:.68rem;padding:0 6px;border-radius:4px;margin-left:6px;vertical-align:1px;background:var(--sunk);color:var(--muted)}
@@ -243,6 +244,7 @@ footer a{color:var(--accent)}
   <section class="panel" id="pBuy" hidden>
     <div class="controls">
       <div><div class="lbl">角色範圍</div><div class="chips" id="buyScope"></div></div>
+      <div class="row"><div class="seg" id="buySort"></div><label class="tog"><input type="checkbox" id="buyHide"> 隱藏已買齊</label></div>
     </div>
     <div class="stats" id="buyStats"></div>
     <div id="buyBody"></div>
@@ -628,7 +630,7 @@ function defaultState(){
   const chars=[{id:uid(),name:'本尊'}];
   for(let i=1;i<=5;i++) chars.push({id:uid(),name:'分身'+i});
   return {chars, cur:chars[0].id, track:{}, shop:{}, shopT:{}, dk:'', wk:'',
-    ui:{tab:'sum', sumType:'all', sumScope:'cur', buyScope:'cur', progScope:'cur', sumSort:'qty', expand:true, recType:'all', recRegion:'', onlyTracked:false, shopRegion:'', shopCur:'all', hideUnl:false, shopOnly:false}};
+    ui:{buySort:'place', buyHide:false, tab:'sum', sumType:'all', sumScope:'cur', buyScope:'cur', progScope:'cur', sumSort:'qty', expand:true, recType:'all', recRegion:'', onlyTracked:false, shopRegion:'', shopCur:'all', hideUnl:false, shopOnly:false}};
 }
 let S;
 try{ S=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){ S=null; }
@@ -957,20 +959,47 @@ function renderBuy(){
     <div class="stat"><b>${num(gold)}</b><span>還需要的金幣</span></div>
     <div class="stat"><b style="font-size:1rem">${Object.keys(other).length?Object.entries(other).map(([k,v])=>`${num(v)} ${esc(k)}`).join('<br>'):'–'}</b><span>還需要的其他貨幣</span></div>`;
   if(!rows.length){ $('#buyBody').innerHTML=`<div class="empty"><b>還沒有必買項目</b>到「勾選追蹤項目」勾選一定要買的商品，這裡會列出每個角色本週還要買多少、要花多少錢。<div style="margin-top:12px"><button class="btn primary" data-go="shopset">去勾選追蹤項目</button></div></div>`; return; }
-  const order=x=>[...REGIONS,'多個村莊'].indexOf(x.region);
+  segHTML('#buySort',[['place','依地區＋NPC'],['status','依購買狀態']],S.ui.buySort); $('#buyHide').checked=S.ui.buyHide;
+  const order=x=>{ const i=[...REGIONS,'多個村莊'].indexOf(x.region); return i<0?999:i; };
+  const sidx=Object.fromEntries(SHOP.map((x,i)=>[x.id,i]));
+  const npcOrder=x=>SHOP.findIndex(y=>y.region===x.region&&y.npc===x.npc);
+  const byPlace=(a,b)=>order(a)-order(b)||npcOrder(a)-npcOrder(b)||sidx[a.id]-sidx[b.id];
+  const regLabel=r=>r==='多個村莊'?'多個村莊（任一位 NPC 都能買）':r;
+  const vis=S.ui.buyHide?rows.filter(r=>r.left):rows;
+  if(!vis.length){ $('#buyBody').innerHTML=`<div class="empty"><b>本週必買都買齊了</b>取消「隱藏已買齊」可以看到全部項目。</div>`; return; }
   if(S.ui.buyScope!=='all'){
-    rows.sort((a,b)=>(a.left?0:1)-(b.left?0:1)||order(a.x)-order(b.x));
-    const groups=[['要買',rows.filter(r=>r.left)],['已買齊',rows.filter(r=>!r.left)]];
-    $('#buyBody').innerHTML=groups.filter(g=>g[1].length).map(([title,rs])=>`<div class="region"><h3>${title}<small>${rs.length} 項</small></h3><div class="npc">${rs.map(r=>shopRow(r.x,r.c.id,null,false)).join('')}</div></div>`).join('');
-    return;
+    if(S.ui.buySort==='status'){
+      vis.sort((a,b)=>(a.left?0:1)-(b.left?0:1)||byPlace(a.x,b.x));
+      const groups=[['要買',vis.filter(r=>r.left)],['已買齊',vis.filter(r=>!r.left)]];
+      $('#buyBody').innerHTML=groups.filter(g=>g[1].length).map(([title,rs])=>`<div class="region"><h3>${title}<small>${rs.length} 項</small></h3><div class="npc">${rs.map(r=>shopRow(r.x,r.c.id,null,false)).join('')}</div></div>`).join('');
+      return;
+    }
+    vis.sort((a,b)=>byPlace(a.x,b.x)||(a.left?0:1)-(b.left?0:1));
+    let h='', lastR='', lastN='';
+    for(const r of vis){ const x=r.x;
+      if(x.region!==lastR){ if(lastN) h+='</div>'; if(lastR) h+='</div>'; lastR=x.region; lastN='';
+        const rs=vis.filter(v=>v.x.region===x.region), left=rs.filter(v=>v.left).length;
+        h+=`<div class="region"><h3>${esc(regLabel(x.region))}<small>${left?`還要買 ${left} 項`:'都買齊了'}</small></h3>`; }
+      if(x.npc!==lastN){ if(lastN) h+='</div>'; lastN=x.npc;
+        const ns=vis.filter(v=>v.x.region===x.region&&v.x.npc===x.npc), gold=ns.reduce((a,v)=>a+(v.x.cur==='金幣'?v.left*v.x.price:0),0);
+        h+=`<div class="npc"><div class="who"><span>${esc(x.npc)}</span>${gold?`<span>約 ${num(gold)} 金幣</span>`:''}</div>`; }
+      h+=shopRow(x,r.c.id,null,false).replace('・'+esc(x.region+' '+x.npc),'');
+    }
+    if(lastN) h+='</div>'; if(lastR) h+='</div>';
+    $('#buyBody').innerHTML=h; return;
   }
   // 全部角色：表格
   const items={}; for(const r of rows){ const k=r.x.id; (items[k]=items[k]||{x:r.x,per:{},left:0,t:0}); items[k].per[r.c.id]=r; items[k].left+=r.left; items[k].t+=r.t; }
   const cols=[...S.chars, ...(rows.some(r=>r.c.id===ACCT)?[ACCT_CHAR]:[])];
-  const list=Object.values(items).sort((a,b)=>b.left-a.left||order(a.x)-order(b.x));
+  let list=Object.values(items); if(S.ui.buyHide) list=list.filter(i=>i.left);
+  const place=S.ui.buySort==='place';
+  list.sort(place?(a,b)=>byPlace(a.x,b.x):(a,b)=>b.left-a.left||byPlace(a.x,b.x));
   let h=`<div class="tablebox"><table><thead><tr><th>商品</th><th>還要買</th><th>單價</th>${cols.map(c=>`<th>${esc(c.name)}</th>`).join('')}</tr></thead><tbody>`;
+  let lastG='';
   for(const it of list){ const x=it.x;
-    h+=`<tr><td>${esc(x.item)}${x.pack>1?`×${x.pack}`:''}<span class="kind">${esc(x.region==='多個村莊'?'多個村莊':x.region)} ${esc(x.npc.length>8?x.npc.slice(0,8)+'…':x.npc)}</span></td><td class="total">${num(it.left)}</td><td class="shop"><b>${esc(priceTxt(x))}</b></td>${cols.map(c=>{const r=it.per[c.id];return `<td class="c ${r&&r.left?'':'z'}">${r?(r.left?num(r.left):'✓'):'–'}</td>`}).join('')}</tr>`; }
+    const g=regLabel(x.region)+'・'+x.npc;
+    if(place&&g!==lastG){ lastG=g; h+=`<tr class="grp"><td colspan="${3+cols.length}">${esc(g)}</td></tr>`; }
+    h+=`<tr><td>${esc(x.item)}${x.pack>1?`×${x.pack}`:''}${place?'':`<span class="kind">${esc(x.region)} ${esc(x.npc.length>8?x.npc.slice(0,8)+'…':x.npc)}</span>`}</td><td class="total">${num(it.left)}</td><td class="shop"><b>${esc(priceTxt(x))}</b></td>${cols.map(c=>{const r=it.per[c.id];return `<td class="c ${r&&r.left?'':'z'}">${r?(r.left?num(r.left):'✓'):'–'}</td>`}).join('')}</tr>`; }
   $('#buyBody').innerHTML=h+'</tbody></table></div><p class="note">點上方的角色名稱可以切到該角色，直接記錄購買數量。</p>';
 }
 function renderShop(){
@@ -1033,6 +1062,8 @@ $('#tabShop').onclick=()=>{ if(S.ui.tab!=='buy'&&S.ui.tab!=='shopset') go(S.ui.l
 $('#subTabs').onclick=e=>{ const b=e.target.closest('[data-tab]'); if(!b) return; const t=b.dataset.tab;
   if(['sum','rec'].includes(t)) S.ui.lastBB=t; else S.ui.lastShop=t; go(t); };
 $('#buyScope').onclick=e=>scopeClick(e,'buyScope',render);
+$('#buySort').onclick=e=>{ const v=e.target.dataset.v; if(v){ S.ui.buySort=v; save(); renderBuy(); } };
+$('#buyHide').onchange=e=>{ S.ui.buyHide=e.target.checked; save(); renderBuy(); };
 $('#buyBody').addEventListener('click',e=>{ if(e.target.dataset.go){ S.ui.lastShop='shopset'; go('shopset'); return; } shopAct(e); });
 $('#buyBody').addEventListener('change',shopTarget);
 $('#shopBody').addEventListener('click',shopAct);
