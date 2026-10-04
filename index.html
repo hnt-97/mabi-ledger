@@ -204,6 +204,7 @@ footer a{color:var(--accent)}
         <div class="seg" id="sumType"></div>
         <select id="sumSort" aria-label="排序"><option value="qty">依需求量</option><option value="name">依名稱</option></select>
         <label class="tog"><input type="checkbox" id="expand"> 料理與兌換品換算成原料</label>
+        <label class="tog"><input type="checkbox" id="expandProc"> 加工材料換算成原料</label>
       </div>
     </div>
     <div class="notice-restore" id="restoreBar" hidden><b>偵測到備份資料</b><span>要用這份備份取代目前裝置上的紀錄嗎？</span><div class="row"><button class="btn primary" id="rsYes">還原</button><button class="btn" id="rsNo">取消</button></div></div>
@@ -438,6 +439,18 @@ const BOARD_RAW = `
 `;
 
 /* 料理配方（做 1 份所需原料） */
+/* 加工材料：做 1 次的產量與所需原料（需求量會無條件進位到整批） */
+const PROCESS = {
+  '美乃滋':{y:3,in:[['雞蛋',10],['食用油',2]]},
+  '麵粉':{y:3,in:[['小麥',15]]},
+  '起司':{y:3,in:[['牛奶',6],['鹽',1]]},
+  '麵':{y:3,in:[['麵粉',3],['雞蛋',5],['裝水的瓶子',1]]},
+  '鮮奶油':{y:3,in:[['牛奶',12],['雞蛋',6],['糖',2]]},
+  '泡水的豆子':{y:5,in:[['黃豆',30],['裝水的瓶子',3]]},
+  '豆腐':{y:3,in:[['裝水的瓶子',3],['鹽',2],['布料',3]]},
+  '豆乳':{y:3,in:[['泡水的豆子',3],['裝水的瓶子',3],['鹽',1],['食用油',1]]},
+  '熟成的大塊肉':{y:1,in:[['大塊肉',1],['藥草',6],['大蒜',2],['鹽',2],['胡椒',1]]},
+};
 const RECIPES = {
   '蘋果汁':[['蘋果',4],['藥草',2],['裝水的瓶子',1],['糖',2]],
   '烤整顆馬鈴薯':[['馬鈴薯',3],['藥草',2],['糖',2]],
@@ -751,6 +764,19 @@ function compute(type, scope, expand=S.ui.expand){
       const left=Math.max(0,r.t-r.d); runsLeft+=left; if(!left) continue;
       for(const [name,q] of it.give) need(name,left*q,c,{c:c.name,it,left},'',0);
     }}
+  // 加工材料換算：同一角色的需求先合計，再依產量進位成整批，依相依順序展開（例如 麵 → 麵粉 → 小麥）
+  if(S.ui.expandProc) for(const c of chars){
+    for(let guard=0;guard<30;guard++){
+      const pend=Object.keys(PROCESS).filter(n=>mats[n]&&mats[n].per[c.id]>0);
+      const n=pend.find(n=>!pend.some(o=>o!==n&&PROCESS[o].in.some(([g])=>g===n))); if(!n) break;
+      const m=mats[n], qty=m.per[c.id], pr=PROCESS[n], batch=Math.ceil(qty/pr.y);
+      m.total-=qty; delete m.per[c.id];
+      const mine=m.src.filter(x=>x.c===c.name); m.src=m.src.filter(x=>x.c!==c.name);
+      if(m.total<=0) delete mats[n];
+      const base=mine[0]||{c:c.name,it:{region:'',npc:'',give:[],get:'',type:'barter'},left:0};
+      for(const [g,q] of pr.in) add(g,batch*q,c,{...base,need:batch*q,via:`${base.via?base.via+' → ':''}加工 ${n}×${batch*pr.y}（${batch} 次）`});
+    }
+  }
   return {chars,mats:Object.values(mats),tracked,runsLeft};
 }
 function shopInfo(name, chars){
@@ -784,7 +810,7 @@ function renderSum(){
   segHTML('#sumType',TYPE_OPTS,S.ui.sumType);
   if(!S.chars.some(c=>c.id===S.cur)) S.cur=S.chars[0].id;
   scopeChips('#sumScope','sumScope',hasAcct);
-  $('#sumSort').value=S.ui.sumSort; $('#expand').checked=S.ui.expand;
+  $('#sumSort').value=S.ui.sumSort; $('#expand').checked=S.ui.expand; $('#expandProc').checked=!!S.ui.expandProc;
   const {chars,mats,tracked,runsLeft}=compute(S.ui.sumType,S.ui.sumScope);
   mats.sort(S.ui.sumSort==='qty'?(a,b)=>b.total-a.total||a.name.localeCompare(b.name,'zh-Hant'):(a,b)=>a.name.localeCompare(b.name,'zh-Hant'));
   const mat=mats.filter(m=>!CURRENCIES.includes(m.name)), cur=mats.filter(m=>CURRENCIES.includes(m.name));
@@ -1072,6 +1098,7 @@ $('#sumType').onclick=e=>{const v=e.target.dataset.v; if(v){S.ui.sumType=v;openM
 $('#sumScope').onclick=e=>scopeClick(e,'sumScope',render);
 $('#sumSort').onchange=e=>{S.ui.sumSort=e.target.value;save();renderSum();};
 $('#expand').onchange=e=>{S.ui.expand=e.target.checked;openMat=null;save();renderSum();};
+$('#expandProc').onchange=e=>{S.ui.expandProc=e.target.checked;openMat=null;save();render();};
 $('#sumBody').onclick=e=>{
   if(e.target.dataset.go){S.ui.lastBB='rec';go('rec');return;}
   const tr=e.target.closest('tr.mat'); if(tr){openMat=openMat===tr.dataset.mat?null:tr.dataset.mat;renderSum();}};
