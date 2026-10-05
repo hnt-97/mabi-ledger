@@ -91,6 +91,9 @@ tbody tr.mat:hover{background:var(--accent-soft)}
 td.total{font-family:var(--f-num);font-weight:500;color:var(--brass);font-size:1rem}
 td.c{font-family:var(--f-num);color:var(--ink)}
 td.c.z{color:var(--line)}
+.gotchk{vertical-align:-4px;margin-right:8px!important}
+tr.mat.got td{color:var(--muted)}
+tr.mat.got td.total{color:var(--muted);text-decoration:line-through}
 .kind.acct{background:var(--accent-soft);color:var(--accent)}
 .kind.cur{background:var(--sunk);color:var(--ink)}
 h4.sub{margin:6px 0 0;font-size:.95rem}
@@ -215,7 +218,7 @@ footer a{color:var(--accent)}
       <div class="row" style="justify-content:space-between;margin-top:6px"><h3 class="sec-title">任務進度</h3><button class="btn" id="resetChar">清空本角色進度</button></div>
       <div id="progBody"></div>
     </div>
-    <p class="note">選單一角色時，下方會出現該角色的任務進度，按＋記錄完成次數，上方素材量會跟著更新。需求量＝（目標次數 − 已完成次數）× 每次所需數量。點材料列可看是哪些任務或兌換要用、哪裡買得到。「本週可買」是範圍內角色在「材料商店」分頁扣掉已購買後的剩餘數量；帳號共用的項目只算一次。</p>
+    <p class="note">選單一角色時，下方會出現該角色的任務進度，按＋記錄完成次數，上方素材量會跟著更新。選「全部角色」時，素材前的勾選框可標記已收集完成（只是備忘，不影響進度，每週一清空）。需求量＝（目標次數 − 已完成次數）× 每次所需數量。點材料列可看是哪些任務或兌換要用、哪裡買得到。「本週可買」是範圍內角色在「材料商店」分頁扣掉已購買後的剩餘數量；帳號共用的項目只算一次。</p>
   </section>
 
   <!-- 紀錄 -->
@@ -643,14 +646,15 @@ const MAX_CHARS=6; // 本尊＋5 個分身
 function defaultState(){
   const chars=[{id:uid(),name:'本尊'}];
   for(let i=1;i<=5;i++) chars.push({id:uid(),name:'分身'+i});
-  return {chars, cur:chars[0].id, track:{}, shop:{}, shopT:{}, dk:'', wk:'',
+  return {chars, cur:chars[0].id, track:{}, shop:{}, shopT:{}, got:{}, dk:'', wk:'',
     ui:{buySort:'place', buyHide:false, tab:'sum', sumType:'all', sumScope:'cur', buyScope:'cur', progScope:'cur', sumSort:'qty', expand:true, recType:'all', recRegion:'', onlyTracked:false, shopRegion:'', shopCur:'all', hideUnl:false, shopOnly:false}};
 }
 let S;
 try{ S=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){ S=null; }
 if(!S||!Array.isArray(S.chars)||!S.chars.length) S=defaultState();
 S.chars=S.chars.slice(0,MAX_CHARS);
-S.ui=Object.assign(defaultState().ui,S.ui||{}); S.track=S.track||{}; S.shop=S.shop||{}; S.shopT=S.shopT||{};
+S.ui=Object.assign(defaultState().ui,S.ui||{}); S.track=S.track||{}; S.shop=S.shop||{}; S.shopT=S.shopT||{}; S.got=S.got||{};
+for(const k of Object.keys(S.got)) if(!k.includes('|')){ S.got['board|'+k]=1; S.got['barter|'+k]=1; delete S.got[k]; } else if(k.startsWith('all|')){ const n=k.slice(4); S.got['board|'+n]=1; S.got['barter|'+n]=1; delete S.got[k]; }
 if(S.ui.tab==='prog') S.ui.tab='sum';
 if(!['sum','rec','buy','shopset'].includes(S.ui.tab)) S.ui.tab=S.ui.tab==='shop'?'shopset':'sum';
 if(S.ui.lastBB==='prog') S.ui.lastBB='sum';
@@ -683,6 +687,7 @@ function applyResets(){
     for(const cid in S.shop) for(const sid in S.shop[cid]){ const x=SHOP_BYID[sid];
       if(!x||((x.per==='w'||x.per==='n')&&rw)||(x.per==='d'&&rd)){ delete S.shop[cid][sid]; changed=true; } }
   }
+  if(rw&&Object.keys(S.got||{}).length){ S.got={}; changed=true; } // 已收集標記每週一清空
   if(S.dk!==day||S.wk!==mon){ S.dk=day; S.wk=mon; changed=true; }
   if(changed) save();
   return rd||rw;
@@ -793,14 +798,27 @@ function shopInfo(name, chars){
 }
 const fmtQty=v=>v===Infinity?'不限':num(v);
 let openMat=null;
+/* 已收集：佈告欄、以物易物各自記錄；綜合＝該素材在有用到的列表都已勾選 */
+let GOT_NEED={board:new Set(),barter:new Set()};
+function isGot(n){
+  if(S.ui.sumType!=='all') return !!S.got[S.ui.sumType+'|'+n];
+  const ls=['board','barter'].filter(l=>GOT_NEED[l].has(n));
+  return ls.length>0 && ls.every(l=>S.got[l+'|'+n]);
+}
+function setGot(n,on){
+  const ls=S.ui.sumType==='all'?['board','barter']:[S.ui.sumType];
+  for(const l of ls){ if(on) S.got[l+'|'+n]=1; else delete S.got[l+'|'+n]; }
+}
 function matTable(mats, chars, multi, title){
   if(!mats.length) return '';
+  const chk=S.ui.sumScope==='all';
   let h=title?`<h4 class="sub">${title}</h4>`:'';
   h+=`<div class="tablebox"><table><thead><tr><th>${title&&title.startsWith('貨幣')?'貨幣':'素材'}</th><th>合計</th><th>商店單價・本週可買</th>${multi?chars.map(c=>`<th>${esc(c.name)}</th>`).join(''):''}</tr></thead><tbody>`;
   for(const m of mats){
     const kinds=[...m.kinds].map(k=>`<span class="kind ${k}">${k==='board'?'佈告欄':'易物'}</span>`).join('');
     const si=shopInfo(m.name,chars);
-    h+=`<tr class="mat" data-mat="${esc(m.name)}" tabindex="0"><td>${esc(m.name)}${S.ui.sumType==='all'?kinds:''}</td><td class="total">${num(m.total)}</td><td class="shop">${si?`<b>${esc(priceTxt(si.best))}</b>${si.best.pack>1?`/${si.best.pack}個`:''} ・ ${fmtQty(si.left)}`:'–'}</td>${multi?chars.map(c=>{const v=m.per[c.id]||0;return `<td class="c ${v?'':'z'}">${v?num(v):'–'}</td>`}).join(''):''}</tr>`;
+    const gk=m.name, got=chk&&isGot(m.name);
+    h+=`<tr class="mat ${got?'got':''}" data-mat="${esc(m.name)}" tabindex="0"><td>${chk?`<input type="checkbox" class="gotchk" data-got="${esc(gk)}" ${got?'checked':''} aria-label="${esc(m.name)} 已收集">`:''}${esc(m.name)}${S.ui.sumType==='all'?kinds:''}</td><td class="total">${num(m.total)}</td><td class="shop">${si?`<b>${esc(priceTxt(si.best))}</b>${si.best.pack>1?`/${si.best.pack}個`:''} ・ ${fmtQty(si.left)}`:'–'}</td>${multi?chars.map(c=>{const v=m.per[c.id]||0;return `<td class="c ${v?'':'z'}">${v?num(v):'–'}</td>`}).join(''):''}</tr>`;
     if(openMat===m.name){
       h+=`<tr class="src"><td colspan="${3+(multi?chars.length:0)}"><ul>${m.src.map(s=>`<li><b>${esc(s.c)}</b>・${esc(s.it.region)} ${esc(s.it.npc)}：${esc(s.it.give.map(g=>g[0]+'×'+g[1]).join('、'))}${s.it.type==='board'?'':' → '+esc(s.it.get)}，剩 ${s.left} 次（需 ${num(s.need)}${s.via?`，用於 ${esc(s.via)}`:''}）</li>`).join('')}${si?si.list.map(x=>`<li>商店：${esc(x.region)} ${esc(x.npc)}，${x.pack>1?`${x.pack} 個`:'每個'} ${esc(priceTxt(x))}${x.cur==='金幣'?' 金幣':''}，${limTxt(x)}${x.acct?'（帳號共用）':''}</li>`).join(''):''}</ul></td></tr>`;
     }
@@ -813,6 +831,7 @@ function renderSum(){
   scopeChips('#sumScope','sumScope',hasAcct);
   $('#sumSort').value=S.ui.sumSort; $('#expand').checked=S.ui.expand; $('#expandProc').checked=!!S.ui.expandProc;
   const {chars,mats,tracked,runsLeft}=compute(S.ui.sumType,S.ui.sumScope);
+  if(S.ui.sumScope==='all'&&S.ui.sumType==='all') GOT_NEED={board:new Set(compute('board','all').mats.map(m=>m.name)), barter:new Set(compute('barter','all').mats.map(m=>m.name))};
   mats.sort(S.ui.sumSort==='qty'?(a,b)=>b.total-a.total||a.name.localeCompare(b.name,'zh-Hant'):(a,b)=>a.name.localeCompare(b.name,'zh-Hant'));
   const mat=mats.filter(m=>!CURRENCIES.includes(m.name)), cur=mats.filter(m=>CURRENCIES.includes(m.name));
   let cost=0; for(const m of mat){ const si=shopInfo(m.name,chars); if(si&&si.goldUnit!=null) cost+=Math.min(m.total,si.goldLeft)*si.goldUnit; }
@@ -1102,6 +1121,7 @@ $('#expand').onchange=e=>{S.ui.expand=e.target.checked;openMat=null;save();rende
 $('#expandProc').onchange=e=>{S.ui.expandProc=e.target.checked;openMat=null;save();render();};
 $('#sumBody').onclick=e=>{
   if(e.target.dataset.go){S.ui.lastBB='rec';go('rec');return;}
+  if(e.target.classList.contains('gotchk')){ setGot(e.target.dataset.got,e.target.checked); save(); renderSum(); return; }
   const tr=e.target.closest('tr.mat'); if(tr){openMat=openMat===tr.dataset.mat?null:tr.dataset.mat;renderSum();}};
 $('#sumBody').onkeydown=e=>{ if(e.key==='Enter'&&e.target.matches('tr.mat')) e.target.click(); };
 $('#recChars').onclick=e=>{const c=e.target.dataset.cid; if(c){S.cur=c;save();render();}};
@@ -1207,7 +1227,7 @@ function packState(){
   return {v:4, n:S.chars.map(c=>c.name),
     t:pack(S.track,r=>r&&r.t?[r.t,r.d||0]:null),
     b:pack(S.shop,b=>b?[b]:null),
-    g:pack(S.shopT,t=>t?[t]:null)};
+    g:pack(S.shopT,t=>t?[t]:null), k:Object.keys(S.got||{})};
 }
 async function makeBackup(){
   const json=new TextEncoder().encode(JSON.stringify(packState()));
@@ -1228,9 +1248,9 @@ async function readBackup(code){
   const cidOf=k=>k==='a'?ACCT:(chars[+k]||{}).id;
   const unpack=(src,fn)=>{ const out={}; for(const k in src||{}){ const cid=cidOf(k); if(!cid) continue; out[cid]={};
     for(const [h,...v] of src[k]){ const id=HMAP[h]; if(id) out[cid][id]=fn(v); } } return out; };
-  return {chars, track:unpack(o.t,v=>({t:+v[0],d:+v[1]||0})), shop:unpack(o.b,v=>+v[0]), shopT:unpack(o.g,v=>+v[0])};
+  return {chars, track:unpack(o.t,v=>({t:+v[0],d:+v[1]||0})), shop:unpack(o.b,v=>+v[0]), shopT:unpack(o.g,v=>+v[0]), got:Object.fromEntries((o.k||[]).map(k=>[k,1]))};
 }
-function applyBackup(d){ S.chars=d.chars; S.track=d.track; S.shop=d.shop; S.shopT=d.shopT; S.cur=S.chars[0].id; S.ui.sumScope='cur'; save(); }
+function applyBackup(d){ S.chars=d.chars; S.track=d.track; S.shop=d.shop; S.shopT=d.shopT; S.got=d.got||{}; S.cur=S.chars[0].id; S.ui.sumScope='cur'; save(); }
 $('#bkCopy').onclick=async()=>{ const t=$('#bkOut');
   try{ await navigator.clipboard.writeText(t.value); toast('已複製備份碼'); }catch(e){ t.focus(); t.select(); toast('請手動複製已選取的文字'); } };
 $('#bkLink').onclick=async()=>{ const url=location.origin+location.pathname+'#r='+$('#bkOut').value;
@@ -1253,10 +1273,10 @@ $('#wipe').onclick=e=>{ const b=e.currentTarget;
 /* ===== 雲端同步介面（GitHub 版載入 Firebase 後才會啟用） ===== */
 window.MabiSync={
   onSave:null,
-  snapshot:()=>({chars:S.chars,track:S.track,shop:S.shop,shopT:S.shopT,dk:S.dk,wk:S.wk}),
+  snapshot:()=>({chars:S.chars,track:S.track,shop:S.shop,shopT:S.shopT,got:S.got,dk:S.dk,wk:S.wk}),
   isEmpty:()=>![S.track,S.shop,S.shopT].some(o=>Object.values(o).some(v=>Object.keys(v).length)),
   apply:d=>{ if(!d||!Array.isArray(d.chars)||!d.chars.length) return;
-    S.chars=d.chars.slice(0,MAX_CHARS); S.track=d.track||{}; S.shop=d.shop||{}; S.shopT=d.shopT||{}; S.dk=d.dk||S.dk; S.wk=d.wk||S.wk;
+    S.chars=d.chars.slice(0,MAX_CHARS); S.track=d.track||{}; S.shop=d.shop||{}; S.shopT=d.shopT||{}; S.got=d.got||{}; S.dk=d.dk||S.dk; S.wk=d.wk||S.wk;
     if(!S.chars.some(c=>c.id===S.cur)) S.cur=S.chars[0].id;
     try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){}
     applyResets(); render(); if(dlg.open) renderManage(); },
